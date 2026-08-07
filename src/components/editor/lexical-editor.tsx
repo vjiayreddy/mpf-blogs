@@ -12,6 +12,7 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $createParagraphNode,
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   type EditorState,
@@ -30,7 +31,7 @@ import { HeadingNode, QuoteNode, $createHeadingNode, $createQuoteNode } from "@l
 import { CodeNode, $createCodeNode } from "@lexical/code";
 import { LinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $setBlocksType } from "@lexical/selection";
-import { $generateHtmlFromNodes } from "@lexical/html";
+import { $generateHtmlFromNodes, $generateNodesFromDOM } from "@lexical/html";
 
 const theme = {
   paragraph: "mb-3 leading-7 text-[15px] text-stone-800",
@@ -144,13 +145,45 @@ function InitialContentPlugin({ initialJSON }: { initialJSON?: string }) {
   return null;
 }
 
+function HtmlImportPlugin({
+  htmlToImport,
+}: {
+  htmlToImport?: { html: string; key: number };
+}) {
+  const [editor] = useLexicalComposerContext();
+  const lastKey = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!htmlToImport?.html || htmlToImport.key === lastKey.current) return;
+    lastKey.current = htmlToImport.key;
+
+    editor.update(() => {
+      const parser = new DOMParser();
+      const dom = parser.parseFromString(htmlToImport.html, "text/html");
+      const nodes = $generateNodesFromDOM(editor, dom);
+      const root = $getRoot();
+      root.clear();
+      root.append(...nodes);
+      root.selectEnd();
+    });
+  }, [editor, htmlToImport]);
+
+  return null;
+}
+
 type EditorProps = {
   initialJSON?: string;
+  htmlToImport?: { html: string; key: number };
   onChange: (payload: { lexicalJSON: string; html: string }) => void;
   className?: string;
 };
 
-export function LexicalEditor({ initialJSON, onChange, className }: EditorProps) {
+export function LexicalEditor({
+  initialJSON,
+  htmlToImport,
+  onChange,
+  className,
+}: EditorProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -207,6 +240,7 @@ export function LexicalEditor({ initialJSON, onChange, className }: EditorProps)
         <LinkPlugin />
         <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
         <InitialContentPlugin initialJSON={initialJSON} />
+        <HtmlImportPlugin htmlToImport={htmlToImport} />
       </LexicalComposer>
     </div>
   );

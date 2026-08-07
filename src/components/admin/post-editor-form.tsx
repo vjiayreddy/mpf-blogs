@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
+import { AiGeneratePanel, type AiGeneratedPost } from "@/components/admin/ai-generate-panel";
 import { createPost, updatePost } from "@/app/actions/content";
 import type { ContentStatus } from "@/lib/constants";
 
@@ -63,12 +64,14 @@ export function PostEditorForm({
   const [seoDescription, setSeoDescription] = useState(initial?.seo?.description || "");
   const [message, setMessage] = useState("");
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [htmlToImport, setHtmlToImport] = useState<{ html: string; key: number } | undefined>();
   const contentRef = useRef({
     lexicalJSON: initial?.lexicalJSON || "",
     html: initial?.html || "",
   });
   const autosaveCount = useRef(0);
   const currentId = useRef(postId);
+  const importKey = useRef(0);
 
   const buildPayload = useCallback(
     (overrideStatus?: ContentStatus) => ({
@@ -152,6 +155,27 @@ export function PostEditorForm({
     contentRef.current = payload;
   }, []);
 
+  const checkExistingContent = useCallback(() => {
+    return Boolean(
+      title.trim() ||
+        excerpt.trim() ||
+        seoTitle.trim() ||
+        seoDescription.trim() ||
+        contentRef.current.lexicalJSON ||
+        contentRef.current.html
+    );
+  }, [title, excerpt, seoTitle, seoDescription]);
+
+  const onAiGenerated = useCallback((payload: AiGeneratedPost) => {
+    setTitle(payload.title);
+    setExcerpt(payload.excerpt);
+    setSeoTitle(payload.seo.title);
+    setSeoDescription(payload.seo.description);
+    importKey.current += 1;
+    setHtmlToImport({ html: payload.html, key: importKey.current });
+    setMessage("AI draft applied — review and save");
+  }, []);
+
   const toggleId = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 
@@ -208,12 +232,15 @@ export function PostEditorForm({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() =>
+                onClick={() => {
+                  if (!window.confirm("Publish this post? It will be visible on the site.")) {
+                    return;
+                  }
                   startTransition(async () => {
                     setStatus("published");
                     await persist({ status: "published", revision: true });
-                  })
-                }
+                  });
+                }}
                 className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
               >
                 Publish
@@ -223,6 +250,8 @@ export function PostEditorForm({
         </div>
       </div>
 
+      <AiGeneratePanel hasExistingContent={checkExistingContent} onGenerated={onAiGenerated} />
+
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -230,7 +259,11 @@ export function PostEditorForm({
         className="w-full border-0 border-b border-stone-200 bg-transparent pb-3 text-3xl font-semibold outline-none placeholder:text-stone-300"
       />
 
-      <LexicalEditor initialJSON={initial?.lexicalJSON} onChange={onEditorChange} />
+      <LexicalEditor
+        initialJSON={initial?.lexicalJSON}
+        htmlToImport={htmlToImport}
+        onChange={onEditorChange}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <label className="block text-sm">
