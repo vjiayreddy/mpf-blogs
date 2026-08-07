@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { auth } from "@/lib/auth";
 import { getSettings } from "@/models/Settings";
 import { connectDB } from "@/lib/db";
 
 export async function PublicHeader() {
   await connectDB();
-  const settings = await getSettings();
+  const [settings, session] = await Promise.all([getSettings(), auth()]);
 
   return (
     <header className="border-b border-stone-200 bg-[#faf8f5]">
@@ -22,12 +23,21 @@ export async function PublicHeader() {
           <Link href="/about" className="hover:text-stone-900">
             About
           </Link>
-          <Link
-            href="/login"
-            className="rounded-full bg-stone-900 px-3 py-1.5 text-white hover:bg-stone-800"
-          >
-            Sign in
-          </Link>
+          {session?.user ? (
+            <Link
+              href="/admin"
+              className="rounded-full bg-stone-900 px-3 py-1.5 text-white hover:bg-stone-800"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-full bg-stone-900 px-3 py-1.5 text-white hover:bg-stone-800"
+            >
+              Sign in
+            </Link>
+          )}
         </nav>
       </div>
     </header>
