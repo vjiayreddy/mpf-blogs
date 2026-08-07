@@ -1,4 +1,4 @@
-# Blog Portal
+# MPF Blog Portal
 
 Ghost-like publishing platform (Phase 1 MVP) built with **Next.js**, **Tailwind CSS**, **Lexical**, **Auth.js**, **MongoDB**, and **Cloudinary**.
 
