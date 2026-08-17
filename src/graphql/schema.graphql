@@ -1,0 +1,436 @@
+"""ISO-8601 datetime string"""
+scalar DateTime
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  AUTHOR
+  READER
+}
+
+enum ContentStatus {
+  draft
+  scheduled
+  published
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum RevisionDocumentType {
+  post
+  page
+}
+
+enum AnalyticsEventType {
+  page_view
+}
+
+enum AiTone {
+  professional
+  casual
+  technical
+  storytelling
+}
+
+enum AiLength {
+  short
+  medium
+  long
+}
+
+type Seo {
+  title: String
+  description: String
+  ogImage: String
+}
+
+type SocialLinks {
+  twitter: String
+  github: String
+  linkedin: String
+  website: String
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  role: Role!
+  avatar: String
+  bio: String
+  status: UserStatus!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Category {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Tag {
+  id: ID!
+  name: String!
+  slug: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Series {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String
+  coverImage: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Post {
+  id: ID!
+  title: String!
+  slug: String!
+  excerpt: String
+  lexicalJSON: String
+  html: String
+  plaintext: String
+  status: ContentStatus!
+  author: User!
+  editor: User
+  categories: [Category!]!
+  tags: [Tag!]!
+  series: Series
+  seriesOrder: Int!
+  coverImage: String
+  seo: Seo
+  publishedAt: DateTime
+  scheduledAt: DateTime
+  readingTime: Int!
+  featured: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Page {
+  id: ID!
+  title: String!
+  slug: String!
+  excerpt: String
+  lexicalJSON: String
+  html: String
+  status: ContentStatus!
+  author: User!
+  editor: User
+  coverImage: String
+  seo: Seo
+  publishedAt: DateTime
+  scheduledAt: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Media {
+  id: ID!
+  cloudinaryPublicId: String!
+  url: String!
+  width: Int
+  height: Int
+  format: String
+  alt: String
+  bytes: Int
+  uploadedBy: User!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Revision {
+  id: ID!
+  documentId: ID!
+  documentType: RevisionDocumentType!
+  lexicalJSON: String!
+  html: String
+  title: String
+  author: User!
+  createdAt: DateTime!
+}
+
+type Settings {
+  id: ID!
+  siteTitle: String!
+  siteDescription: String
+  logo: String
+  socialLinks: SocialLinks
+  defaultSeo: Seo
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type DashboardStats {
+  drafts: Int!
+  scheduled: Int!
+  published: Int!
+  recentDrafts: [Post!]!
+  scheduledQueue: [Post!]!
+}
+
+type ViewsByDay {
+  date: String!
+  count: Int!
+}
+
+type TopPostStat {
+  postId: ID!
+  title: String!
+  slug: String!
+  count: Int!
+}
+
+type AnalyticsSummary {
+  totalViews: Int!
+  viewsByDay: [ViewsByDay!]!
+  topPosts: [TopPostStat!]!
+}
+
+type PublishDueResult {
+  publishedPosts: Int!
+  publishedPages: Int!
+}
+
+type AiGeneratedPost {
+  title: String!
+  excerpt: String!
+  html: String!
+  seo: Seo!
+}
+
+type DeletePayload {
+  ok: Boolean!
+}
+
+type TrackPageViewPayload {
+  ok: Boolean!
+}
+
+# ── Inputs ──────────────────────────────────────────────
+
+input SeoInput {
+  title: String
+  description: String
+  ogImage: String
+}
+
+input SocialLinksInput {
+  twitter: String
+  github: String
+  linkedin: String
+  website: String
+}
+
+input PostFilterInput {
+  status: ContentStatus
+  q: String
+}
+
+input PostInput {
+  title: String!
+  slug: String
+  excerpt: String
+  lexicalJSON: String
+  html: String
+  status: ContentStatus
+  categoryIds: [ID!]
+  tagIds: [ID!]
+  seriesId: ID
+  seriesOrder: Int
+  coverImage: String
+  seo: SeoInput
+  scheduledAt: DateTime
+  featured: Boolean
+}
+
+input PostUpdateInput {
+  title: String
+  slug: String
+  excerpt: String
+  lexicalJSON: String
+  html: String
+  status: ContentStatus
+  categoryIds: [ID!]
+  tagIds: [ID!]
+  seriesId: ID
+  seriesOrder: Int
+  coverImage: String
+  seo: SeoInput
+  scheduledAt: DateTime
+  featured: Boolean
+}
+
+input PageInput {
+  title: String!
+  slug: String
+  excerpt: String
+  lexicalJSON: String
+  html: String
+  status: ContentStatus
+  coverImage: String
+  seo: SeoInput
+  scheduledAt: DateTime
+}
+
+input PageUpdateInput {
+  title: String
+  slug: String
+  excerpt: String
+  lexicalJSON: String
+  html: String
+  status: ContentStatus
+  coverImage: String
+  seo: SeoInput
+  scheduledAt: DateTime
+}
+
+input TaxonomyInput {
+  name: String!
+  slug: String
+  description: String
+  coverImage: String
+}
+
+input TaxonomyUpdateInput {
+  name: String
+  slug: String
+  description: String
+  coverImage: String
+}
+
+input UserCreateInput {
+  name: String!
+  email: String!
+  password: String!
+  role: Role!
+  bio: String
+}
+
+input UserUpdateInput {
+  name: String
+  role: Role
+  bio: String
+  status: UserStatus
+  password: String
+}
+
+input SettingsInput {
+  siteTitle: String!
+  siteDescription: String
+  logo: String
+  socialLinks: SocialLinksInput
+  defaultSeo: SeoInput
+}
+
+input TrackPageViewInput {
+  path: String!
+  postId: ID
+  referrer: String
+}
+
+input AiGeneratePostInput {
+  topic: String!
+  tone: AiTone = professional
+  length: AiLength = medium
+  keywords: String
+}
+
+# ── Root ────────────────────────────────────────────────
+
+type Query {
+  me: User
+
+  # Posts (admin)
+  posts(filter: PostFilterInput): [Post!]!
+  post(id: ID!): Post
+  postBySlug(slug: String!): Post
+
+  # Pages (admin)
+  pages: [Page!]!
+  page(id: ID!): Page
+  pageBySlug(slug: String!): Page
+
+  # Taxonomies
+  categories: [Category!]!
+  category(id: ID!): Category
+  tags: [Tag!]!
+  tag(id: ID!): Tag
+  seriesList: [Series!]!
+  series(id: ID!): Series
+
+  # Users
+  users: [User!]!
+  user(id: ID!): User
+
+  # Media
+  media(limit: Int = 48): [Media!]!
+  mediaItem(id: ID!): Media
+
+  # Revisions
+  revisions(documentId: ID!, documentType: RevisionDocumentType!): [Revision!]!
+
+  # Settings / analytics / dashboard
+  settings: Settings!
+  dashboardStats: DashboardStats!
+  analyticsSummary(days: Int = 30): AnalyticsSummary!
+}
+
+type Mutation {
+  # Posts
+  createPost(input: PostInput!): Post!
+  updatePost(id: ID!, input: PostUpdateInput!, createRevision: Boolean = true): Post!
+  deletePost(id: ID!): DeletePayload!
+
+  # Pages
+  createPage(input: PageInput!): Page!
+  updatePage(id: ID!, input: PageUpdateInput!, createRevision: Boolean = true): Page!
+  deletePage(id: ID!): DeletePayload!
+
+  # Categories
+  createCategory(input: TaxonomyInput!): Category!
+  updateCategory(id: ID!, input: TaxonomyUpdateInput!): Category!
+  deleteCategory(id: ID!): DeletePayload!
+
+  # Tags
+  createTag(input: TaxonomyInput!): Tag!
+  updateTag(id: ID!, input: TaxonomyUpdateInput!): Tag!
+  deleteTag(id: ID!): DeletePayload!
+
+  # Series
+  createSeries(input: TaxonomyInput!): Series!
+  updateSeries(id: ID!, input: TaxonomyUpdateInput!): Series!
+  deleteSeries(id: ID!): DeletePayload!
+
+  # Users
+  createUser(input: UserCreateInput!): User!
+  updateUser(id: ID!, input: UserUpdateInput!): User!
+
+  # Media metadata (upload stays REST)
+  updateMediaAlt(id: ID!, alt: String!): Media!
+  deleteMedia(id: ID!): DeletePayload!
+
+  # Settings
+  updateSettings(input: SettingsInput!): Settings!
+
+  # Analytics ingest
+  trackPageView(input: TrackPageViewInput!): TrackPageViewPayload!
+
+  # AI draft
+  generatePostDraft(input: AiGeneratePostInput!): AiGeneratedPost!
+
+  # Scheduled publish (prefer secret-protected REST; GraphQL optional for admin tools)
+  publishDueContent: PublishDueResult!
+}

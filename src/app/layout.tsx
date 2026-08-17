@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Source_Serif_4, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/providers/auth-provider";
+import { ApolloProvider } from "@/components/providers/apollo-provider";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -39,7 +40,9 @@ export default function RootLayout({
       className={`${dmSans.variable} ${sourceSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full font-[family-name:var(--font-dm-sans)]">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ApolloProvider>{children}</ApolloProvider>
+        </AuthProvider>
       </body>
     </html>
   );
