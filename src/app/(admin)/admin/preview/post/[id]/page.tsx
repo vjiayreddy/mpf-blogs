@@ -1,6 +1,5 @@
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
+import { fetchPostById } from "@/lib/graphql/posts";
 import { notFound, redirect } from "next/navigation";
 import { canEditAnyContent } from "@/lib/rbac";
 import type { Role } from "@/lib/constants";
@@ -14,13 +13,12 @@ export default async function PreviewPostPage({
   if (!session?.user) redirect("/login");
 
   const { id } = await params;
-  await connectDB();
-  const post = await Post.findById(id).populate("authorId", "name").lean();
+  const post = await fetchPostById(id);
   if (!post) notFound();
 
   if (
     !canEditAnyContent(session.user.role as Role) &&
-    String(post.authorId?._id || post.authorId) !== session.user.id
+    post.authorId?.id !== session.user.id
   ) {
     redirect("/admin");
   }

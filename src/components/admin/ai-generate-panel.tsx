@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "@apollo/client/react";
 import { AI_LENGTHS, AI_TONES } from "@/lib/validators";
+import { GENERATE_POST_DRAFT_MUTATION } from "@/graphql/operations/posts";
 
 export type AiGeneratedPost = {
   title: string;
@@ -15,14 +17,23 @@ type AiGeneratePanelProps = {
   onGenerated: (payload: AiGeneratedPost) => void;
 };
 
+type GenerateData = {
+  blogPortalGeneratePostDraft: {
+    title?: string | null;
+    excerpt?: string | null;
+    html?: string | null;
+    seo?: { title?: string | null; description?: string | null } | null;
+  } | null;
+};
+
 export function AiGeneratePanel({ hasExistingContent, onGenerated }: AiGeneratePanelProps) {
   const [open, setOpen] = useState(false);
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState<(typeof AI_TONES)[number]>("professional");
   const [length, setLength] = useState<(typeof AI_LENGTHS)[number]>("medium");
   const [keywords, setKeywords] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [generateDraft, { loading }] = useMutation<GenerateData>(GENERATE_POST_DRAFT_MUTATION);
 
   const generate = async () => {
     if (!topic.trim()) {
@@ -39,37 +50,37 @@ export function AiGeneratePanel({ hasExistingContent, onGenerated }: AiGenerateP
       return;
     }
 
-    setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/ai/generate-post", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic: topic.trim(),
-          tone,
-          length,
-          keywords: keywords.trim() || undefined,
-        }),
+      const result = await generateDraft({
+        variables: {
+          input: {
+            topic: topic.trim(),
+            tone,
+            length,
+            keywords: keywords.trim() || null,
+          },
+        },
       });
-      const data = (await res.json()) as AiGeneratedPost & { error?: string };
-      if (!res.ok) {
-        throw new Error(data.error || "Generation failed");
+      const generated = result.data?.blogPortalGeneratePostDraft;
+      const title = String(generated?.title || "").trim();
+      const excerpt = String(generated?.excerpt || "").trim();
+      const html = String(generated?.html || "").trim();
+      if (!title || !html) {
+        throw new Error("AI response missing title or html");
       }
       onGenerated({
-        title: data.title,
-        excerpt: data.excerpt || "",
-        html: data.html,
+        title,
+        excerpt,
+        html,
         seo: {
-          title: data.seo?.title || data.title,
-          description: data.seo?.description || data.excerpt || "",
+          title: String(generated?.seo?.title || title).trim().slice(0, 70),
+          description: String(generated?.seo?.description || excerpt).trim().slice(0, 160),
         },
       });
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
-    } finally {
-      setLoading(false);
     }
   };
 

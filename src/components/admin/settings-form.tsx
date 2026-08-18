@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateSettings } from "@/app/actions/media-settings";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { SETTINGS_QUERY, UPDATE_SETTINGS_MUTATION } from "@/graphql/operations/settings";
 
 type Settings = {
   siteTitle: string;
@@ -20,24 +21,68 @@ type Settings = {
   };
 };
 
-export function SettingsForm({ initial }: { initial: Settings }) {
-  const [form, setForm] = useState(initial);
+type SettingsData = { blogPortalSettings: Settings | null };
+
+export function SettingsForm() {
+  const { data, loading, error } = useQuery<SettingsData>(SETTINGS_QUERY);
+  const [updateSettings, { loading: saving }] = useMutation(UPDATE_SETTINGS_MUTATION, {
+    refetchQueries: [{ query: SETTINGS_QUERY }],
+  });
+  const [form, setForm] = useState<Settings>({
+    siteTitle: "",
+    siteDescription: "",
+    logo: "",
+    socialLinks: {},
+    defaultSeo: {},
+  });
   const [message, setMessage] = useState("");
-  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (data?.blogPortalSettings) {
+      setForm(data.blogPortalSettings);
+    }
+  }, [data]);
+
+  if (loading) return <p className="text-sm text-stone-500">Loading settings…</p>;
+  if (error) {
+    return (
+      <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800">
+        {error.message}
+      </p>
+    );
+  }
 
   return (
     <form
       className="max-w-2xl space-y-4"
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        startTransition(async () => {
-          try {
-            await updateSettings(form);
-            setMessage("Settings saved");
-          } catch (err) {
-            setMessage(err instanceof Error ? err.message : "Failed");
-          }
-        });
+        setMessage("");
+        try {
+          await updateSettings({
+            variables: {
+              input: {
+                siteTitle: form.siteTitle,
+                siteDescription: form.siteDescription || "",
+                logo: form.logo || "",
+                socialLinks: {
+                  twitter: form.socialLinks?.twitter || "",
+                  github: form.socialLinks?.github || "",
+                  linkedin: form.socialLinks?.linkedin || "",
+                  website: form.socialLinks?.website || "",
+                },
+                defaultSeo: {
+                  title: form.defaultSeo?.title || "",
+                  description: form.defaultSeo?.description || "",
+                  ogImage: form.defaultSeo?.ogImage || "",
+                },
+              },
+            },
+          });
+          setMessage("Settings saved");
+        } catch (err) {
+          setMessage(err instanceof Error ? err.message : "Failed");
+        }
       }}
     >
       <h1 className="text-2xl font-semibold">Site settings</h1>
@@ -103,7 +148,7 @@ export function SettingsForm({ initial }: { initial: Settings }) {
       </label>
       <button
         type="submit"
-        disabled={pending}
+        disabled={saving}
         className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
       >
         Save settings

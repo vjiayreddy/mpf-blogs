@@ -1,5 +1,4 @@
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
+import { authorName, fetchPublicPosts } from "@/lib/graphql/posts";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
 import type { Metadata } from "next";
@@ -11,11 +10,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function BlogIndexPage() {
-  await connectDB();
-  const posts = await Post.find({ status: "published" })
-    .sort({ publishedAt: -1 })
-    .populate("authorId", "name")
-    .lean();
+  const posts = await fetchPublicPosts({ status: "published" });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">
@@ -24,18 +19,14 @@ export default async function BlogIndexPage() {
       <div className="mt-10 grid gap-10 md:grid-cols-2 lg:grid-cols-3">
         {posts.map((post) => (
           <PostCard
-            key={String(post._id)}
+            key={post.id}
             title={post.title}
             slug={post.slug}
             excerpt={post.excerpt || undefined}
             coverImage={post.coverImage || undefined}
             publishedAt={post.publishedAt}
             readingTime={post.readingTime}
-            authorName={
-              typeof post.authorId === "object" && post.authorId && "name" in post.authorId
-                ? String(post.authorId.name)
-                : undefined
-            }
+            authorName={authorName(post)}
           />
         ))}
       </div>

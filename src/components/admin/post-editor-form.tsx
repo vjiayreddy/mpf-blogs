@@ -2,64 +2,103 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { useSession } from "next-auth/react";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
 import { AiGeneratePanel, type AiGeneratedPost } from "@/components/admin/ai-generate-panel";
-import { createPost, updatePost } from "@/app/actions/content";
-import type { ContentStatus } from "@/lib/constants";
+import {
+  CREATE_POST_MUTATION,
+  GET_POST_QUERY,
+  UPDATE_POST_MUTATION,
+} from "@/graphql/operations/posts";
+import { LIST_TAXONOMIES_QUERY } from "@/graphql/operations/taxonomies";
+import { toPostInput, type RawGraphqlPost } from "@/lib/graphql/posts-input";
+import { slugify } from "@/lib/utils";
+import { canPublish } from "@/lib/rbac";
+import type { ContentStatus, Role } from "@/lib/constants";
 
-type Taxonomy = { _id: string; name: string };
-type SeriesItem = { _id: string; name: string };
-
-type PostFormProps = {
-  mode: "create" | "edit";
-  postId?: string;
-  initial?: {
-    title?: string;
-    slug?: string;
-    excerpt?: string;
-    lexicalJSON?: string;
-    html?: string;
-    status?: ContentStatus;
-    coverImage?: string;
-    categoryIds?: string[];
-    tagIds?: string[];
-    seriesId?: string | null;
-    seriesOrder?: number;
-    featured?: boolean;
-    scheduledAt?: string | null;
-    seo?: { title?: string; description?: string; ogImage?: string };
-  };
-  categories: Taxonomy[];
-  tags: Taxonomy[];
-  series: SeriesItem[];
-  canPublish: boolean;
+type Taxonomy = { id: string; name: string };
+type TaxonomiesData = {
+  blogPortalCategories: Taxonomy[];
+  blogPortalTags: Taxonomy[];
+  blogPortalSeriesList: Taxonomy[];
 };
+type GetPostData = { blogPortalPost: RawGraphqlPost | null };
+type CreatePostData = { blogPortalCreatePost: { id: string } };
 
 export function PostEditorForm({
+  mode,
+  postId,
+}: {
+  mode: "create" | "edit";
+  postId?: string;
+}) {
+  const { data: sessionData } = useSession();
+  const role = (sessionData?.user?.role as Role) || "READER";
+  const { data: taxData, loading: taxLoading } = useQuery<TaxonomiesData>(LIST_TAXONOMIES_QUERY);
+  const { data: postData, loading: postLoading, error } = useQuery<GetPostData>(GET_POST_QUERY, {
+    variables: { id: postId },
+    skip: !postId,
+  });
+
+  if (taxLoading || (mode === "edit" && postLoading)) {
+    return <p className="text-sm text-stone-500">Loading editor…</p>;
+  }
+  if (mode === "edit" && (error || !postData?.blogPortalPost)) {
+    return <p className="text-sm text-red-700">{error?.message || "Post not found"}</p>;
+  }
+
+  return (
+    <PostEditorFields
+      key={postId || "new"}
+      mode={mode}
+      postId={postId}
+      initial={postData?.blogPortalPost || undefined}
+      categories={taxData?.blogPortalCategories || []}
+      tags={taxData?.blogPortalTags || []}
+      series={taxData?.blogPortalSeriesList || []}
+      canPublish={canPublish(role)}
+    />
+  );
+}
+
+function PostEditorFields({
   mode,
   postId,
   initial,
   categories,
   tags,
   series,
-  canPublish,
-}: PostFormProps) {
+  canPublish: canPub,
+}: {
+  mode: "create" | "edit";
+  postId?: string;
+  initial?: RawGraphqlPost;
+  categories: Taxonomy[];
+  tags: Taxonomy[];
+  series: Taxonomy[];
+  canPublish: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [createPost] = useMutation<CreatePostData>(CREATE_POST_MUTATION);
+  const [updatePost] = useMutation(UPDATE_POST_MUTATION);
   const [title, setTitle] = useState(initial?.title || "");
   const [slug, setSlug] = useState(initial?.slug || "");
   const [excerpt, setExcerpt] = useState(initial?.excerpt || "");
   const [coverImage, setCoverImage] = useState(initial?.coverImage || "");
-  const [status, setStatus] = useState<ContentStatus>(initial?.status || "draft");
-  const [scheduledAt, setScheduledAt] = useState(
-    initial?.scheduledAt
-      ? new Date(initial.scheduledAt).toISOString().slice(0, 16)
-      : ""
+  const [status, setStatus] = useState<ContentStatus>(
+    (initial?.status as ContentStatus) || "draft"
   );
-  const [categoryIds, setCategoryIds] = useState<string[]>(initial?.categoryIds || []);
-  const [tagIds, setTagIds] = useState<string[]>(initial?.tagIds || []);
-  const [seriesId, setSeriesId] = useState(initial?.seriesId || "");
-  const [featured, setFeatured] = useState(initial?.featured || false);
+  const [scheduledAt, setScheduledAt] = useState(
+    initial?.scheduledAt ? new Date(initial.scheduledAt).toISOString().slice(0, 16) : ""
+  );
+  const [categoryIds, setCategoryIds] = useState<string[]>(
+    (initial?.categories || []).map((c) => c.id)
+  );
+  const [tagIds, setTagIds] = useState<string[]>((initial?.tags || []).map((t) => t.id));
+  const [seriesId, setSeriesId] = useState(initial?.series?.id || "");
+  const [featured, setFeatured] = useState(Boolean(initial?.featured));
   const [seoTitle, setSeoTitle] = useState(initial?.seo?.title || "");
   const [seoDescription, setSeoDescription] = useState(initial?.seo?.description || "");
   const [message, setMessage] = useState("");
@@ -70,32 +109,33 @@ export function PostEditorForm({
     html: initial?.html || "",
   });
   const autosaveCount = useRef(0);
-  const currentId = useRef(postId);
+  const [currentId, setCurrentId] = useState<string | undefined>(postId);
   const importKey = useRef(0);
 
   const buildPayload = useCallback(
-    (overrideStatus?: ContentStatus) => ({
-      title: title || "Untitled",
-      slug: slug || undefined,
-      excerpt,
-      lexicalJSON: contentRef.current.lexicalJSON,
-      html: contentRef.current.html,
-      status: overrideStatus || status,
-      coverImage,
-      categoryIds,
-      tagIds,
-      seriesId: seriesId || null,
-      featured,
-      scheduledAt:
-        (overrideStatus || status) === "scheduled" && scheduledAt
-          ? new Date(scheduledAt).toISOString()
-          : null,
-      seo: {
-        title: seoTitle || undefined,
-        description: seoDescription || undefined,
-        ogImage: coverImage || undefined,
-      },
-    }),
+    (overrideStatus?: ContentStatus) =>
+      toPostInput({
+        title: title || "Untitled",
+        slug: slug || slugify(title || "untitled"),
+        excerpt,
+        lexicalJSON: contentRef.current.lexicalJSON,
+        html: contentRef.current.html,
+        status: overrideStatus || status,
+        coverImage,
+        categoryIds,
+        tagIds,
+        seriesId: seriesId || null,
+        featured,
+        scheduledAt:
+          (overrideStatus || status) === "scheduled" && scheduledAt
+            ? new Date(scheduledAt).toISOString()
+            : null,
+        seo: {
+          title: seoTitle || undefined,
+          description: seoDescription || undefined,
+          ogImage: coverImage || undefined,
+        },
+      }),
     [
       title,
       slug,
@@ -115,17 +155,23 @@ export function PostEditorForm({
   const persist = useCallback(
     async (opts?: { status?: ContentStatus; revision?: boolean; navigate?: boolean }) => {
       try {
-        const payload = buildPayload(opts?.status);
-        if (mode === "create" && !currentId.current) {
-          const created = await createPost(payload);
-          currentId.current = created._id;
+        const input = buildPayload(opts?.status);
+        if (mode === "create" && !currentId) {
+          const result = await createPost({ variables: { input } });
+          const createdId = result.data?.blogPortalCreatePost.id;
+          if (!createdId) throw new Error("Create post failed");
+          setCurrentId(createdId);
           setMessage("Created");
           if (opts?.navigate !== false) {
-            router.replace(`/admin/posts/${created._id}`);
+            router.replace(`/admin/posts/${createdId}`);
           }
-        } else if (currentId.current) {
-          await updatePost(currentId.current, payload, {
-            createRevision: opts?.revision,
+        } else if (currentId) {
+          await updatePost({
+            variables: {
+              id: currentId,
+              input,
+              createRevision: Boolean(opts?.revision),
+            },
           });
           setMessage("Saved");
         }
@@ -134,7 +180,7 @@ export function PostEditorForm({
         setMessage(err instanceof Error ? err.message : "Save failed");
       }
     },
-    [buildPayload, mode, router]
+    [buildPayload, mode, router, createPost, updatePost, currentId]
   );
 
   useEffect(() => {
@@ -192,9 +238,9 @@ export function PostEditorForm({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {currentId.current ? (
+          {currentId ? (
             <a
-              href={`/admin/preview/post/${currentId.current}`}
+              href={`/admin/preview/post/${currentId}`}
               target="_blank"
               rel="noreferrer"
               className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium"
@@ -214,7 +260,7 @@ export function PostEditorForm({
           >
             Save draft
           </button>
-          {canPublish ? (
+          {canPub ? (
             <>
               <button
                 type="button"
@@ -260,7 +306,7 @@ export function PostEditorForm({
       />
 
       <LexicalEditor
-        initialJSON={initial?.lexicalJSON}
+        initialJSON={initial?.lexicalJSON || undefined}
         htmlToImport={htmlToImport}
         onChange={onEditorChange}
       />
@@ -300,8 +346,8 @@ export function PostEditorForm({
             className="w-full rounded-md border border-stone-300 px-3 py-2"
           >
             <option value="draft">Draft</option>
-            {canPublish ? <option value="scheduled">Scheduled</option> : null}
-            {canPublish ? <option value="published">Published</option> : null}
+            {canPub ? <option value="scheduled">Scheduled</option> : null}
+            {canPub ? <option value="published">Published</option> : null}
           </select>
         </label>
         <label className="block text-sm">
@@ -322,7 +368,7 @@ export function PostEditorForm({
           >
             <option value="">None</option>
             {series.map((s) => (
-              <option key={s._id} value={s._id}>
+              <option key={s.id} value={s.id}>
                 {s.name}
               </option>
             ))}
@@ -344,11 +390,11 @@ export function PostEditorForm({
           <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <button
-                key={c._id}
+                key={c.id}
                 type="button"
-                onClick={() => setCategoryIds((prev) => toggleId(prev, c._id))}
+                onClick={() => setCategoryIds((prev) => toggleId(prev, c.id))}
                 className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  categoryIds.includes(c._id)
+                  categoryIds.includes(c.id)
                     ? "bg-stone-900 text-white"
                     : "bg-stone-100 text-stone-700"
                 }`}
@@ -363,13 +409,11 @@ export function PostEditorForm({
           <div className="flex flex-wrap gap-2">
             {tags.map((t) => (
               <button
-                key={t._id}
+                key={t.id}
                 type="button"
-                onClick={() => setTagIds((prev) => toggleId(prev, t._id))}
+                onClick={() => setTagIds((prev) => toggleId(prev, t.id))}
                 className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  tagIds.includes(t._id)
-                    ? "bg-stone-900 text-white"
-                    : "bg-stone-100 text-stone-700"
+                  tagIds.includes(t.id) ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-700"
                 }`}
               >
                 {t.name}

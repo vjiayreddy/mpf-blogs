@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
-import { Page } from "@/models/Page";
 import { revalidatePath } from "next/cache";
+import { apolloMutate } from "@/lib/apollo/rsc";
+import { PUBLISH_DUE_CONTENT_MUTATION } from "@/graphql/operations/posts";
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -11,41 +10,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await connectDB();
-  const now = new Date();
+  try {
+    const data = await apolloMutate<{
+      blogPortalPublishDueContent: {
+        publishedPosts: number;
+        publishedPages: number;
+      };
+    }>({
+      mutation: PUBLISH_DUE_CONTENT_MUTATION,
+    });
 
-  const duePosts = await Post.find({
-    status: "scheduled",
-    scheduledAt: { $lte: now },
-  });
-  const duePages = await Page.find({
-    status: "scheduled",
-    scheduledAt: { $lte: now },
-  });
+    const publishedPosts = data.blogPortalPublishDueContent?.publishedPosts || 0;
+    const publishedPages = data.blogPortalPublishDueContent?.publishedPages || 0;
 
-  for (const post of duePosts) {
-    post.status = "published";
-    post.publishedAt = post.publishedAt || now;
-    post.scheduledAt = null;
-    await post.save();
-    revalidatePath(`/blog/${post.slug}`);
+    if (publishedPosts || publishedPages) {
+      revalidatePath("/");
+      revalidatePath("/blog");
+    }
+
+    return NextResponse.json({
+      publishedPosts,
+      publishedPages,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "GraphQL publish failed";
+    console.error("[graphql] PublishDue failed:", message);
+    return NextResponse.json({ error: message }, { status: 502 });
   }
-
-  for (const page of duePages) {
-    page.status = "published";
-    page.publishedAt = page.publishedAt || now;
-    page.scheduledAt = null;
-    await page.save();
-    revalidatePath(`/${page.slug}`);
-  }
-
-  if (duePosts.length || duePages.length) {
-    revalidatePath("/");
-    revalidatePath("/blog");
-  }
-
-  return NextResponse.json({
-    publishedPosts: duePosts.length,
-    publishedPages: duePages.length,
-  });
 }

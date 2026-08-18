@@ -1,5 +1,4 @@
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
 import type { Role } from "@/lib/constants";
 import { hasMinRole } from "@/lib/rbac";
 
@@ -31,7 +30,6 @@ export async function requireRole(minRole: Role) {
   if (!hasMinRole(session.user.role, minRole)) {
     throw new ActionError("Forbidden", 403);
   }
-  await connectDB();
   return session;
 }
 

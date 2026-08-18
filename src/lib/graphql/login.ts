@@ -1,4 +1,4 @@
-import { graphqlRequest } from "@/lib/graphql/client";
+import { apolloQuery } from "@/lib/apollo/rsc";
 import { BLOG_PORTAL_ME_QUERY, LOGIN_QUERY } from "@/graphql/operations/auth";
 import { ROLES, type Role } from "@/lib/constants";
 
@@ -33,7 +33,7 @@ function isStaffRole(role: string): role is Role {
 }
 
 export async function authenticateBlogPortal(email: string, password: string) {
-  const loginData = await graphqlRequest<LoginResponse>({
+  const loginData = await apolloQuery<LoginResponse>({
     query: LOGIN_QUERY,
     variables: { source: email, password },
   });
@@ -41,9 +41,9 @@ export async function authenticateBlogPortal(email: string, password: string) {
   const accessToken = loginData.login?.token;
   if (!accessToken) return null;
 
-  const meData = await graphqlRequest<MeResponse>({
+  const meData = await apolloQuery<MeResponse>({
     query: BLOG_PORTAL_ME_QUERY,
-    accessToken,
+    context: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
 
   const me = meData.blogPortalMe;
