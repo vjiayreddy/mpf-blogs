@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { getSettings } from "@/models/Settings";
-import { connectDB } from "@/lib/db";
+import { fetchPublicSettings } from "@/lib/graphql/settings";
 
 export async function PublicHeader() {
-  await connectDB();
-  const [settings, session] = await Promise.all([getSettings(), auth()]);
+  const [settings, session] = await Promise.all([fetchPublicSettings(), auth()]);
 
   return (
     <header className="border-b border-stone-200 bg-[#faf8f5]">
@@ -45,8 +43,7 @@ export async function PublicHeader() {
 }
 
 export async function PublicFooter() {
-  await connectDB();
-  const settings = await getSettings();
+  const settings = await fetchPublicSettings();
   return (
     <footer className="mt-auto border-t border-stone-200 bg-[#faf8f5]">
       <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-8 text-sm text-stone-500 sm:flex-row sm:items-center sm:justify-between">
