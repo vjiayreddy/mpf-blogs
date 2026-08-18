@@ -21,6 +21,11 @@ export async function requireSession() {
   return session;
 }
 
+export async function getGraphqlAccessToken() {
+  const session = await auth();
+  return session?.accessToken || null;
+}
+
 export async function requireRole(minRole: Role) {
   const session = await requireSession();
   if (!hasMinRole(session.user.role, minRole)) {
