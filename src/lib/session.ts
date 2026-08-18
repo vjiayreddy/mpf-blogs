@@ -35,6 +35,17 @@ export async function requireRole(minRole: Role) {
   return session;
 }
 
+export async function requireGraphqlRole(minRole: Role) {
+  const session = await requireSession();
+  if (!hasMinRole(session.user.role, minRole)) {
+    throw new ActionError("Forbidden", 403);
+  }
+  if (!session.accessToken) {
+    throw new ActionError("Unauthorized", 401);
+  }
+  return session;
+}
+
 export function toJSON(doc: unknown) {
   return JSON.parse(JSON.stringify(doc));
 }
