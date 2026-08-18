@@ -32,7 +32,8 @@ export const authConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
-        token.role = (user as { role?: Role }).role;
+        token.role = user.role;
+        token.accessToken = user.accessToken;
       }
       return token;
     },
@@ -41,6 +42,8 @@ export const authConfig = {
         session.user.id = String(token.id || "");
         session.user.role = (token.role as Role) || "READER";
       }
+      session.accessToken =
+        typeof token.accessToken === "string" ? token.accessToken : undefined;
       return session;
     },
   },
