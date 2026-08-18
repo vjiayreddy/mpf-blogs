@@ -2,15 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/db";
-import { ActionError, requireRole, toJSON } from "@/lib/session";
+import { ActionError, requireGraphqlRole, requireRole, toJSON } from "@/lib/session";
 import { canManageSettings, canUploadMedia, canViewAnalytics } from "@/lib/rbac";
 import { mediaUpdateSchema, settingsSchema } from "@/lib/validators";
 import { Media } from "@/models/Media";
-import { Settings } from "@/models/Settings";
 import { configureCloudinary, isCloudinaryConfigured } from "@/lib/cloudinary";
 import { AnalyticsEvent } from "@/models/AnalyticsEvent";
 import { Post } from "@/models/Post";
 import mongoose from "mongoose";
+import { graphqlAuthed } from "@/lib/graphql/server";
+import { GraphqlError } from "@/lib/graphql/client";
+import { UPDATE_SETTINGS_MUTATION } from "@/graphql/operations/settings";
+import {
+  fetchBlogPortalSettings,
+  normalizeSettings,
+  type BlogPortalSettings,
+} from "@/lib/graphql/settings";
 
 export async function listMedia(limit = 48) {
   await requireRole("AUTHOR");
@@ -51,29 +58,50 @@ export async function deleteMedia(id: string) {
 }
 
 export async function getAdminSettings() {
-  await requireRole("ADMIN");
-  await connectDB();
-  let settings = await Settings.findOne().lean();
-  if (!settings) {
-    const created = await Settings.create({});
-    settings = created.toObject();
+  const session = await requireGraphqlRole("ADMIN");
+  try {
+    return await fetchBlogPortalSettings(session.accessToken);
+  } catch (err) {
+    if (err instanceof GraphqlError) {
+      throw new ActionError(err.message, 502);
+    }
+    throw err;
   }
-  return toJSON(settings);
 }
 
 export async function updateSettings(input: unknown) {
-  const session = await requireRole("ADMIN");
+  const session = await requireGraphqlRole("ADMIN");
   if (!canManageSettings(session.user.role)) throw new ActionError("Forbidden", 403);
   const data = settingsSchema.parse(input);
-  await connectDB();
-  const settings = await Settings.findOneAndUpdate({}, data, {
-    upsert: true,
-    new: true,
-    setDefaultsOnInsert: true,
-  });
-  revalidatePath("/");
-  revalidatePath("/admin/settings");
-  return toJSON(settings);
+
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalUpdateSettings: BlogPortalSettings | null;
+    }>({
+      query: UPDATE_SETTINGS_MUTATION,
+      variables: {
+        siteTitle: data.siteTitle,
+        siteDescription: data.siteDescription || "",
+        logo: data.logo || "",
+        twitter: data.socialLinks?.twitter || "",
+        github: data.socialLinks?.github || "",
+        linkedin: data.socialLinks?.linkedin || "",
+        website: data.socialLinks?.website || "",
+        seoTitle: data.defaultSeo?.title || "",
+        seoDescription: data.defaultSeo?.description || "",
+        ogImage: data.defaultSeo?.ogImage || "",
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/admin/settings");
+    return normalizeSettings(result.blogPortalUpdateSettings);
+  } catch (err) {
+    if (err instanceof GraphqlError) {
+      throw new ActionError(err.message, 502);
+    }
+    throw err;
+  }
 }
 
 export async function getAnalyticsSummary(days = 30) {

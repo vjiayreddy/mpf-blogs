@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { connectDB } from "@/lib/db";
 import { Post } from "@/models/Post";
-import { getSettings } from "@/models/Settings";
+import { fetchPublicSettings } from "@/lib/graphql/settings";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
-  await connectDB();
-  const settings = await getSettings();
+  const settings = await fetchPublicSettings();
   return buildMetadata({
     title: settings.defaultSeo?.title || settings.siteTitle,
     description: settings.defaultSeo?.description || settings.siteDescription,
@@ -18,8 +17,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
+  const settings = await fetchPublicSettings();
   await connectDB();
-  const settings = await getSettings();
   const [featured, latest] = await Promise.all([
     Post.find({ status: "published", featured: true })
       .sort({ publishedAt: -1 })

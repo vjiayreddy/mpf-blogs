@@ -1,13 +1,13 @@
 import { connectDB } from "@/lib/db";
 import { Post } from "@/models/Post";
-import { getSettings } from "@/models/Settings";
+import { fetchPublicSettings } from "@/lib/graphql/settings";
 import { siteUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const settings = await fetchPublicSettings();
   await connectDB();
-  const settings = await getSettings();
   const posts = await Post.find({ status: "published" })
     .sort({ publishedAt: -1 })
     .limit(50)
