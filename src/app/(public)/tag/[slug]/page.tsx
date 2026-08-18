@@ -4,6 +4,7 @@ import { Tag } from "@/models/Tag";
 import { Post } from "@/models/Post";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
+import { fetchPublicTaxonomies, findBySlug } from "@/lib/graphql/taxonomies";
 import type { Metadata } from "next";
 
 export async function generateMetadata({
@@ -12,8 +13,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  await connectDB();
-  const tag = await Tag.findOne({ slug }).lean();
+  const { tags } = await fetchPublicTaxonomies();
+  const tag = findBySlug(tags, slug);
   if (!tag) return {};
   return buildMetadata({
     title: `#${tag.name}`,
@@ -28,13 +29,17 @@ export default async function TagPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await connectDB();
-  const tag = await Tag.findOne({ slug }).lean();
+  const { tags } = await fetchPublicTaxonomies();
+  const tag = findBySlug(tags, slug);
   if (!tag) notFound();
 
-  const posts = await Post.find({ status: "published", tagIds: tag._id })
-    .sort({ publishedAt: -1 })
-    .lean();
+  await connectDB();
+  const mongoTag = await Tag.findOne({ slug }).lean();
+  const posts = mongoTag
+    ? await Post.find({ status: "published", tagIds: mongoTag._id })
+        .sort({ publishedAt: -1 })
+        .lean()
+    : [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">

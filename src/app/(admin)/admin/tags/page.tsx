@@ -1,4 +1,4 @@
-import { createTag, deleteTag, listTags, updateTag } from "@/app/actions/content";
+import { createTag, listTags, updateTag } from "@/app/actions/content";
 import { TaxonomyManager } from "@/components/admin/taxonomy-manager";
 
 export default async function TagsPage() {
@@ -6,14 +6,9 @@ export default async function TagsPage() {
   return (
     <TaxonomyManager
       title="Tags"
-      items={items.map((i: { _id: string; name: string; slug: string }) => ({
-        _id: String(i._id),
-        name: i.name,
-        slug: i.slug,
-      }))}
+      items={items}
       onCreate={createTag}
       onUpdate={updateTag}
-      onDelete={deleteTag}
     />
   );
 }

@@ -19,15 +19,21 @@ import {
 import { readingTimeFromHtml, slugify } from "@/lib/utils";
 import { Post } from "@/models/Post";
 import { Page } from "@/models/Page";
-import { Category } from "@/models/Category";
-import { Tag } from "@/models/Tag";
-import { Series } from "@/models/Series";
 import { Revision } from "@/models/Revision";
 import { User } from "@/models/User";
 import bcrypt from "bcryptjs";
 import { graphqlAuthed } from "@/lib/graphql/server";
 import { DASHBOARD_STATS_QUERY } from "@/graphql/operations/dashboard";
 import { GraphqlError } from "@/lib/graphql/client";
+import { fetchTaxonomies } from "@/lib/graphql/taxonomies";
+import {
+  CREATE_CATEGORY_MUTATION,
+  CREATE_SERIES_MUTATION,
+  CREATE_TAG_MUTATION,
+  UPDATE_CATEGORY_MUTATION,
+  UPDATE_SERIES_MUTATION,
+  UPDATE_TAG_MUTATION,
+} from "@/graphql/operations/taxonomies";
 import type { Role } from "@/lib/constants";
 import type { ContentStatus } from "@/lib/constants";
 
@@ -391,108 +397,175 @@ export async function deletePage(id: string) {
   return { ok: true };
 }
 
+export async function listTaxonomies() {
+  const session = await requireGraphqlRole("AUTHOR");
+  try {
+    return await fetchTaxonomies(session.accessToken);
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
+}
+
 export async function listCategories() {
-  await requireRole("AUTHOR");
-  await connectDB();
-  return toJSON(await Category.find().sort({ name: 1 }).lean());
+  const { categories } = await listTaxonomies();
+  return categories;
 }
 export async function createCategory(input: unknown) {
-  await requireRole("EDITOR");
+  await requireGraphqlRole("EDITOR");
   const data = taxonomySchema.parse(input);
-  await connectDB();
-  const slug = await uniqueSlug(Category, data.slug || data.name);
-  const doc = await Category.create({ name: data.name, slug, description: data.description || "" });
-  revalidatePath("/admin/categories");
-  return toJSON(doc);
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalCreateCategory: { id: string; name: string; slug: string; description?: string };
+    }>({
+      query: CREATE_CATEGORY_MUTATION,
+      variables: {
+        name: data.name,
+        slug: data.slug || slugify(data.name),
+        description: data.description || "",
+      },
+    });
+    revalidatePath("/admin/categories");
+    const created = result.blogPortalCreateCategory;
+    return { _id: created.id, ...created };
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
 }
 export async function updateCategory(id: string, input: unknown) {
-  await requireRole("EDITOR");
+  await requireGraphqlRole("EDITOR");
   const data = taxonomySchema.partial().parse(input);
-  await connectDB();
-  const updates: Record<string, unknown> = { ...data };
-  if (data.slug || data.name) updates.slug = await uniqueSlug(Category, data.slug || data.name || "item", id);
-  const doc = await Category.findByIdAndUpdate(id, updates, { new: true });
-  if (!doc) throw new ActionError("Not found", 404);
-  revalidatePath("/admin/categories");
-  return toJSON(doc);
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalUpdateCategory: { id: string; name: string; slug: string; description?: string };
+    }>({
+      query: UPDATE_CATEGORY_MUTATION,
+      variables: { id, name: data.name, description: data.description },
+    });
+    revalidatePath("/admin/categories");
+    const updated = result.blogPortalUpdateCategory;
+    return { _id: updated.id, ...updated };
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
 }
-export async function deleteCategory(id: string) {
-  await requireRole("EDITOR");
-  await connectDB();
-  await Category.findByIdAndDelete(id);
-  revalidatePath("/admin/categories");
-  return { ok: true };
+export async function deleteCategory(_id: string) {
+  await requireGraphqlRole("EDITOR");
+  throw new ActionError("Deleting categories is not supported by the GraphQL API", 405);
 }
 
 export async function listTags() {
-  await requireRole("AUTHOR");
-  await connectDB();
-  return toJSON(await Tag.find().sort({ name: 1 }).lean());
+  const { tags } = await listTaxonomies();
+  return tags;
 }
 export async function createTag(input: unknown) {
-  await requireRole("EDITOR");
+  await requireGraphqlRole("EDITOR");
   const data = taxonomySchema.parse(input);
-  await connectDB();
-  const slug = await uniqueSlug(Tag, data.slug || data.name);
-  const doc = await Tag.create({ name: data.name, slug });
-  revalidatePath("/admin/tags");
-  return toJSON(doc);
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalCreateTag: { id: string; name: string; slug: string };
+    }>({
+      query: CREATE_TAG_MUTATION,
+      variables: { name: data.name, slug: data.slug || slugify(data.name) },
+    });
+    revalidatePath("/admin/tags");
+    const created = result.blogPortalCreateTag;
+    return { _id: created.id, ...created };
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
 }
 export async function updateTag(id: string, input: unknown) {
-  await requireRole("EDITOR");
+  await requireGraphqlRole("EDITOR");
   const data = taxonomySchema.partial().parse(input);
-  await connectDB();
-  const updates: Record<string, unknown> = { ...data };
-  if (data.slug || data.name) updates.slug = await uniqueSlug(Tag, data.slug || data.name || "item", id);
-  const doc = await Tag.findByIdAndUpdate(id, updates, { new: true });
-  if (!doc) throw new ActionError("Not found", 404);
-  revalidatePath("/admin/tags");
-  return toJSON(doc);
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalUpdateTag: { id: string; name: string; slug: string };
+    }>({
+      query: UPDATE_TAG_MUTATION,
+      variables: { id, name: data.name },
+    });
+    revalidatePath("/admin/tags");
+    const updated = result.blogPortalUpdateTag;
+    return { _id: updated.id, ...updated };
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
 }
-export async function deleteTag(id: string) {
-  await requireRole("EDITOR");
-  await connectDB();
-  await Tag.findByIdAndDelete(id);
-  revalidatePath("/admin/tags");
-  return { ok: true };
+export async function deleteTag(_id: string) {
+  await requireGraphqlRole("EDITOR");
+  throw new ActionError("Deleting tags is not supported by the GraphQL API", 405);
 }
 
 export async function listSeries() {
-  await requireRole("AUTHOR");
-  await connectDB();
-  return toJSON(await Series.find().sort({ name: 1 }).lean());
+  const { series } = await listTaxonomies();
+  return series;
 }
 export async function createSeries(input: unknown) {
-  await requireRole("EDITOR");
+  await requireGraphqlRole("EDITOR");
   const data = taxonomySchema.parse(input);
-  await connectDB();
-  const slug = await uniqueSlug(Series, data.slug || data.name);
-  const doc = await Series.create({
-    name: data.name,
-    slug,
-    description: data.description || "",
-    coverImage: data.coverImage || "",
-  });
-  revalidatePath("/admin/series");
-  return toJSON(doc);
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalCreateSeries: {
+        id: string;
+        name: string;
+        slug: string;
+        description?: string;
+        coverImage?: string;
+      };
+    }>({
+      query: CREATE_SERIES_MUTATION,
+      variables: {
+        name: data.name,
+        slug: data.slug || slugify(data.name),
+        description: data.description || "",
+        coverImage: data.coverImage || "",
+      },
+    });
+    revalidatePath("/admin/series");
+    const created = result.blogPortalCreateSeries;
+    return { _id: created.id, ...created };
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
 }
 export async function updateSeries(id: string, input: unknown) {
-  await requireRole("EDITOR");
+  await requireGraphqlRole("EDITOR");
   const data = taxonomySchema.partial().parse(input);
-  await connectDB();
-  const updates: Record<string, unknown> = { ...data };
-  if (data.slug || data.name) updates.slug = await uniqueSlug(Series, data.slug || data.name || "item", id);
-  const doc = await Series.findByIdAndUpdate(id, updates, { new: true });
-  if (!doc) throw new ActionError("Not found", 404);
-  revalidatePath("/admin/series");
-  return toJSON(doc);
+  try {
+    const result = await graphqlAuthed<{
+      blogPortalUpdateSeries: {
+        id: string;
+        name: string;
+        slug: string;
+        description?: string;
+        coverImage?: string;
+      };
+    }>({
+      query: UPDATE_SERIES_MUTATION,
+      variables: {
+        id,
+        name: data.name,
+        description: data.description,
+        coverImage: data.coverImage,
+      },
+    });
+    revalidatePath("/admin/series");
+    const updated = result.blogPortalUpdateSeries;
+    return { _id: updated.id, ...updated };
+  } catch (err) {
+    if (err instanceof GraphqlError) throw new ActionError(err.message, 502);
+    throw err;
+  }
 }
-export async function deleteSeries(id: string) {
-  await requireRole("EDITOR");
-  await connectDB();
-  await Series.findByIdAndDelete(id);
-  revalidatePath("/admin/series");
-  return { ok: true };
+export async function deleteSeries(_id: string) {
+  await requireGraphqlRole("EDITOR");
+  throw new ActionError("Deleting series is not supported by the GraphQL API", 405);
 }
 
 export async function listUsers() {

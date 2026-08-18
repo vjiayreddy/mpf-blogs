@@ -1,9 +1,4 @@
-import {
-  createCategory,
-  deleteCategory,
-  listCategories,
-  updateCategory,
-} from "@/app/actions/content";
+import { createCategory, listCategories, updateCategory } from "@/app/actions/content";
 import { TaxonomyManager } from "@/components/admin/taxonomy-manager";
 
 export default async function CategoriesPage() {
@@ -11,16 +6,10 @@ export default async function CategoriesPage() {
   return (
     <TaxonomyManager
       title="Categories"
-      items={items.map((i: { _id: string; name: string; slug: string; description?: string }) => ({
-        _id: String(i._id),
-        name: i.name,
-        slug: i.slug,
-        description: i.description,
-      }))}
+      items={items}
       withDescription
       onCreate={createCategory}
       onUpdate={updateCategory}
-      onDelete={deleteCategory}
     />
   );
 }

@@ -1,16 +1,12 @@
 import { PostEditorForm } from "@/components/admin/post-editor-form";
-import { listCategories, listSeries, listTags } from "@/app/actions/content";
+import { listTaxonomies } from "@/app/actions/content";
 import { auth } from "@/lib/auth";
 import { canPublish } from "@/lib/rbac";
 import type { Role } from "@/lib/constants";
 
 export default async function NewPostPage() {
   const session = await auth();
-  const [categories, tags, series] = await Promise.all([
-    listCategories(),
-    listTags(),
-    listSeries(),
-  ]);
+  const { categories, tags, series } = await listTaxonomies();
 
   return (
     <PostEditorForm
