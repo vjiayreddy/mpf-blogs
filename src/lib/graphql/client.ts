@@ -28,7 +28,12 @@ export async function graphqlRequest<T>(opts: {
     headers.Authorization = `Bearer ${opts.accessToken}`;
   }
 
-  const res = await fetch(getGraphqlUrl(), {
+  const operation =
+    opts.query.match(/(?:query|mutation)\s+([A-Za-z0-9_]+)/)?.[1] || "anonymous";
+  const url = getGraphqlUrl();
+  console.info(`[graphql] ${operation} ${opts.accessToken ? "(authed)" : "(public)"}`);
+
+  const res = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify({

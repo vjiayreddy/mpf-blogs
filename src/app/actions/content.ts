@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/db";
-import { ActionError, requireRole, toJSON } from "@/lib/session";
+import { ActionError, requireGraphqlRole, requireRole, toJSON } from "@/lib/session";
 import {
   canAssignRole,
   canEditAnyContent,
@@ -25,6 +25,9 @@ import { Series } from "@/models/Series";
 import { Revision } from "@/models/Revision";
 import { User } from "@/models/User";
 import bcrypt from "bcryptjs";
+import { graphqlAuthed } from "@/lib/graphql/server";
+import { DASHBOARD_STATS_QUERY } from "@/graphql/operations/dashboard";
+import { GraphqlError } from "@/lib/graphql/client";
 import type { Role } from "@/lib/constants";
 import type { ContentStatus } from "@/lib/constants";
 
@@ -552,22 +555,34 @@ export async function updateUser(id: string, input: unknown) {
 }
 
 export async function getDashboardStats() {
-  const session = await requireRole("AUTHOR");
-  await connectDB();
-  const authorFilter = canEditAnyContent(session.user.role)
-    ? {}
-    : { authorId: session.user.id };
+  await requireGraphqlRole("AUTHOR");
 
-  const [drafts, scheduled, published, recentDrafts, scheduledQueue] = await Promise.all([
-    Post.countDocuments({ ...authorFilter, status: "draft" }),
-    Post.countDocuments({ ...authorFilter, status: "scheduled" }),
-    Post.countDocuments({ ...authorFilter, status: "published" }),
-    Post.find({ ...authorFilter, status: "draft" }).sort({ updatedAt: -1 }).limit(5).lean(),
-    Post.find({ ...authorFilter, status: "scheduled" })
-      .sort({ scheduledAt: 1 })
-      .limit(5)
-      .lean(),
-  ]);
+  try {
+    const data = await graphqlAuthed<{
+      blogPortalDashboardStats: {
+        drafts: number;
+        scheduled: number;
+        published: number;
+        recentDrafts: Array<{
+          id: string;
+          title: string;
+          slug: string;
+          status: string;
+        }>;
+        scheduledQueue: Array<{
+          id: string;
+          title: string;
+          slug: string;
+          scheduledAt?: string | null;
+        }>;
+      };
+    }>({ query: DASHBOARD_STATS_QUERY });
 
-  return toJSON({ drafts, scheduled, published, recentDrafts, scheduledQueue });
+    return data.blogPortalDashboardStats;
+  } catch (err) {
+    if (err instanceof GraphqlError) {
+      throw new ActionError(err.message, 502);
+    }
+    throw err;
+  }
 }
