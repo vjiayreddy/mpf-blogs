@@ -4,6 +4,7 @@ import { Series } from "@/models/Series";
 import { Post } from "@/models/Post";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
+import { fetchPublicTaxonomies, findBySlug } from "@/lib/graphql/taxonomies";
 import type { Metadata } from "next";
 
 export async function generateMetadata({
@@ -12,14 +13,14 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  await connectDB();
-  const series = await Series.findOne({ slug }).lean();
-  if (!series) return {};
+  const { series } = await fetchPublicTaxonomies();
+  const item = findBySlug(series, slug);
+  if (!item) return {};
   return buildMetadata({
-    title: series.name,
-    description: series.description || `Posts in series ${series.name}`,
-    path: `/series/${series.slug}`,
-    image: series.coverImage,
+    title: item.name,
+    description: item.description || `Posts in series ${item.name}`,
+    path: `/series/${item.slug}`,
+    image: item.coverImage,
   });
 }
 
@@ -29,20 +30,22 @@ export default async function SeriesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await connectDB();
-  const series = await Series.findOne({ slug }).lean();
-  if (!series) notFound();
+  const { series } = await fetchPublicTaxonomies();
+  const item = findBySlug(series, slug);
+  if (!item) notFound();
 
-  const posts = await Post.find({ status: "published", seriesId: series._id })
-    .sort({ seriesOrder: 1, publishedAt: 1 })
-    .lean();
+  await connectDB();
+  const mongoSeries = await Series.findOne({ slug }).lean();
+  const posts = mongoSeries
+    ? await Post.find({ status: "published", seriesId: mongoSeries._id })
+        .sort({ seriesOrder: 1, publishedAt: 1 })
+        .lean()
+    : [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">
-      <h1 className="text-4xl font-semibold tracking-tight">{series.name}</h1>
-      {series.description ? (
-        <p className="mt-2 text-stone-600">{series.description}</p>
-      ) : null}
+      <h1 className="text-4xl font-semibold tracking-tight">{item.name}</h1>
+      {item.description ? <p className="mt-2 text-stone-600">{item.description}</p> : null}
       <div className="mt-10 grid gap-10 md:grid-cols-3">
         {posts.map((post) => (
           <PostCard

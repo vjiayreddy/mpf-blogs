@@ -1,9 +1,4 @@
-import {
-  createSeries,
-  deleteSeries,
-  listSeries,
-  updateSeries,
-} from "@/app/actions/content";
+import { createSeries, listSeries, updateSeries } from "@/app/actions/content";
 import { TaxonomyManager } from "@/components/admin/taxonomy-manager";
 
 export default async function SeriesPage() {
@@ -11,16 +6,10 @@ export default async function SeriesPage() {
   return (
     <TaxonomyManager
       title="Series"
-      items={items.map((i: { _id: string; name: string; slug: string; description?: string }) => ({
-        _id: String(i._id),
-        name: i.name,
-        slug: i.slug,
-        description: i.description,
-      }))}
+      items={items}
       withDescription
       onCreate={createSeries}
       onUpdate={updateSeries}
-      onDelete={deleteSeries}
     />
   );
 }

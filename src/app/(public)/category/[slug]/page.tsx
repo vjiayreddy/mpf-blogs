@@ -4,6 +4,7 @@ import { Category } from "@/models/Category";
 import { Post } from "@/models/Post";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
+import { fetchPublicTaxonomies, findBySlug } from "@/lib/graphql/taxonomies";
 import type { Metadata } from "next";
 
 export async function generateMetadata({
@@ -12,8 +13,8 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  await connectDB();
-  const category = await Category.findOne({ slug }).lean();
+  const { categories } = await fetchPublicTaxonomies();
+  const category = findBySlug(categories, slug);
   if (!category) return {};
   return buildMetadata({
     title: category.name,
@@ -28,17 +29,21 @@ export default async function CategoryPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  await connectDB();
-  const category = await Category.findOne({ slug }).lean();
+  const { categories } = await fetchPublicTaxonomies();
+  const category = findBySlug(categories, slug);
   if (!category) notFound();
 
-  const posts = await Post.find({
-    status: "published",
-    categoryIds: category._id,
-  })
-    .sort({ publishedAt: -1 })
-    .populate("authorId", "name")
-    .lean();
+  await connectDB();
+  const mongoCategory = await Category.findOne({ slug }).lean();
+  const posts = mongoCategory
+    ? await Post.find({
+        status: "published",
+        categoryIds: mongoCategory._id,
+      })
+        .sort({ publishedAt: -1 })
+        .populate("authorId", "name")
+        .lean()
+    : [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">

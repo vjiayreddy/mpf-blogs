@@ -17,7 +17,7 @@ export function TaxonomyManager({
   items: Item[];
   onCreate: (input: { name: string; description?: string }) => Promise<unknown>;
   onUpdate: (id: string, input: { name: string; description?: string }) => Promise<unknown>;
-  onDelete: (id: string) => Promise<unknown>;
+  onDelete?: (id: string) => Promise<unknown>;
   withDescription?: boolean;
 }) {
   const router = useRouter();
@@ -88,18 +88,20 @@ export function TaxonomyManager({
               >
                 Rename
               </button>
-              <button
-                type="button"
-                className="text-sm text-red-700 hover:underline"
-                onClick={() =>
-                  startTransition(async () => {
-                    await onDelete(item._id);
-                    router.refresh();
-                  })
-                }
-              >
-                Delete
-              </button>
+              {onDelete ? (
+                <button
+                  type="button"
+                  className="text-sm text-red-700 hover:underline"
+                  onClick={() =>
+                    startTransition(async () => {
+                      await onDelete(item._id);
+                      router.refresh();
+                    })
+                  }
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
           </li>
         ))}

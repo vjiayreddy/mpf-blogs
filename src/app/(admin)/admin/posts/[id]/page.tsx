@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PostEditorForm } from "@/components/admin/post-editor-form";
-import { getPost, listCategories, listSeries, listTags } from "@/app/actions/content";
+import { getPost, listTaxonomies } from "@/app/actions/content";
 import { auth } from "@/lib/auth";
 import { canPublish } from "@/lib/rbac";
 import type { Role, ContentStatus } from "@/lib/constants";
@@ -20,11 +20,7 @@ export default async function EditPostPage({
     notFound();
   }
 
-  const [categories, tags, series] = await Promise.all([
-    listCategories(),
-    listTags(),
-    listSeries(),
-  ]);
+  const { categories, tags, series } = await listTaxonomies();
 
   const categoryIds = (post.categoryIds || []).map(
     (c: { _id?: string } | string) => (typeof c === "string" ? c : c._id!)
