@@ -21,40 +21,6 @@ export type RawGraphqlPage = {
   } | null;
 };
 
-export type PageWriteInput = {
-  title?: string;
-  slug?: string;
-  excerpt?: string;
-  lexicalJSON?: string;
-  html?: string;
-  status?: string;
-  coverImage?: string;
-  scheduledAt?: string | null;
-  seo?: {
-    title?: string;
-    description?: string;
-    ogImage?: string;
-  };
-};
-
-export function toPageInput(data: PageWriteInput) {
-  return {
-    ...(data.title !== undefined ? { title: data.title } : {}),
-    slug: data.slug || undefined,
-    excerpt: data.excerpt || "",
-    lexicalJSON: data.lexicalJSON || "",
-    html: data.html || "",
-    coverImage: data.coverImage || "",
-    scheduledAt: data.scheduledAt || null,
-    ...(data.status ? { status: data.status } : {}),
-    seo: {
-      title: data.seo?.title || "",
-      description: data.seo?.description || "",
-      ogImage: data.seo?.ogImage || data.coverImage || "",
-    },
-  };
-}
-
 export async function fetchPublicPageBySlug(slug: string) {
   try {
     const data = await apolloQuery<{ blogPortalPageBySlug: RawGraphqlPage | null }>({

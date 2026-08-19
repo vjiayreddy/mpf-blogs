@@ -171,9 +171,32 @@ function HtmlImportPlugin({
   return null;
 }
 
+function JsonImportPlugin({
+  jsonToImport,
+}: {
+  jsonToImport?: { json: string; key: number };
+}) {
+  const [editor] = useLexicalComposerContext();
+  const lastKey = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!jsonToImport?.json || jsonToImport.key === lastKey.current) return;
+    lastKey.current = jsonToImport.key;
+    try {
+      const state = editor.parseEditorState(jsonToImport.json);
+      editor.setEditorState(state);
+    } catch {
+      // ignore invalid revision JSON
+    }
+  }, [editor, jsonToImport]);
+
+  return null;
+}
+
 type EditorProps = {
   initialJSON?: string;
   htmlToImport?: { html: string; key: number };
+  jsonToImport?: { json: string; key: number };
   onChange: (payload: { lexicalJSON: string; html: string }) => void;
   className?: string;
 };
@@ -181,6 +204,7 @@ type EditorProps = {
 export function LexicalEditor({
   initialJSON,
   htmlToImport,
+  jsonToImport,
   onChange,
   className,
 }: EditorProps) {
@@ -241,6 +265,7 @@ export function LexicalEditor({
         <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
         <InitialContentPlugin initialJSON={initialJSON} />
         <HtmlImportPlugin htmlToImport={htmlToImport} />
+        <JsonImportPlugin jsonToImport={jsonToImport} />
       </LexicalComposer>
     </div>
   );
