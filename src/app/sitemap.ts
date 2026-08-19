@@ -1,16 +1,14 @@
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
-import { Page } from "@/models/Page";
+import { fetchPublicPages } from "@/lib/graphql/pages";
+import { fetchPublicPosts } from "@/lib/graphql/posts";
 import { siteUrl } from "@/lib/utils";
 import type { MetadataRoute } from "next";
 
 export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  await connectDB();
   const [posts, pages] = await Promise.all([
-    Post.find({ status: "published" }).select("slug updatedAt").lean(),
-    Page.find({ status: "published" }).select("slug updatedAt").lean(),
+    fetchPublicPosts({ status: "published" }),
+    fetchPublicPages(),
   ]);
 
   return [
@@ -19,13 +17,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: siteUrl("/search"), lastModified: new Date(), changeFrequency: "monthly", priority: 0.3 },
     ...posts.map((post) => ({
       url: siteUrl(`/blog/${post.slug}`),
-      lastModified: post.updatedAt || new Date(),
+      lastModified: post.updatedAt ? new Date(post.updatedAt) : new Date(),
       changeFrequency: "weekly" as const,
       priority: 0.8,
     })),
     ...pages.map((page) => ({
       url: siteUrl(`/${page.slug}`),
-      lastModified: page.updatedAt || new Date(),
+      lastModified: page.updatedAt ? new Date(page.updatedAt) : new Date(),
       changeFrequency: "monthly" as const,
       priority: 0.6,
     })),

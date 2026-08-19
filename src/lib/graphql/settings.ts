@@ -1,4 +1,4 @@
-import { graphqlRequest, GraphqlError } from "@/lib/graphql/client";
+import { apolloQuery } from "@/lib/apollo/rsc";
 import { SETTINGS_QUERY } from "@/graphql/operations/settings";
 
 export type BlogPortalSettings = {
@@ -70,22 +70,12 @@ export function normalizeSettings(
   };
 }
 
-export async function fetchBlogPortalSettings(accessToken?: string | null) {
-  const data = await graphqlRequest<SettingsQueryData>({
-    query: SETTINGS_QUERY,
-    accessToken,
-  });
-  return normalizeSettings(data.blogPortalSettings);
-}
-
 export async function fetchPublicSettings() {
   try {
-    return await fetchBlogPortalSettings();
+    const data = await apolloQuery<SettingsQueryData>({ query: SETTINGS_QUERY });
+    return normalizeSettings(data.blogPortalSettings);
   } catch (err) {
-    if (err instanceof GraphqlError) {
-      console.error("[graphql] GetSettings failed, using fallback:", err.message);
-      return FALLBACK_SETTINGS;
-    }
-    throw err;
+    console.error("[graphql] GetSettings failed, using fallback:", err);
+    return FALLBACK_SETTINGS;
   }
 }

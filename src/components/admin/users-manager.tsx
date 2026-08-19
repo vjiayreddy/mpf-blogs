@@ -1,58 +1,62 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { createUser, updateUser } from "@/app/actions/content";
+import { useState } from "react";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { useSession } from "next-auth/react";
+import { CREATE_USER_MUTATION, LIST_USERS_QUERY, UPDATE_USER_MUTATION } from "@/graphql/operations/users";
 import { ROLES, type Role } from "@/lib/constants";
+import { canAssignRole } from "@/lib/rbac";
 
 type UserRow = {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   role: Role;
   status: string;
 };
 
-export function UsersManager({
-  users,
-  actorRole,
-}: {
-  users: UserRow[];
-  actorRole: Role;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+type UsersData = { blogPortalUsers: UserRow[] };
+
+export function UsersManager() {
+  const { data: sessionData } = useSession();
+  const actorRole = (sessionData?.user?.role as Role) || "READER";
+  const { data, loading, error, refetch } = useQuery<UsersData>(LIST_USERS_QUERY);
+  const [createUser, { loading: creating }] = useMutation(CREATE_USER_MUTATION);
+  const [updateUser] = useMutation(UPDATE_USER_MUTATION);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("AUTHOR");
-  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
 
+  const users = data?.blogPortalUsers || [];
   const assignable = ROLES.filter((r) => {
     if (r === "READER") return false;
-    if (actorRole === "OWNER") return true;
-    return r !== "OWNER" && r !== "ADMIN";
+    return canAssignRole(actorRole, r);
   });
+
+  if (loading) return <p className="text-sm text-stone-500">Loading users…</p>;
+  if (error) return <p className="text-sm text-red-700">{error.message}</p>;
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Users</h1>
       <form
         className="grid gap-3 rounded-lg border border-stone-200 bg-white p-4 md:grid-cols-2"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          setError("");
-          startTransition(async () => {
-            try {
-              await createUser({ name, email, password, role });
-              setName("");
-              setEmail("");
-              setPassword("");
-              router.refresh();
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Failed");
-            }
-          });
+          setFormError("");
+          try {
+            await createUser({
+              variables: { input: { name, email, password, role } },
+            });
+            setName("");
+            setEmail("");
+            setPassword("");
+            await refetch();
+          } catch (err) {
+            setFormError(err instanceof Error ? err.message : "Failed");
+          }
         }}
       >
         <input
@@ -91,17 +95,17 @@ export function UsersManager({
         </select>
         <button
           type="submit"
-          disabled={pending}
+          disabled={creating}
           className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white md:col-span-2"
         >
           Create user
         </button>
-        {error ? <p className="text-sm text-red-700 md:col-span-2">{error}</p> : null}
+        {formError ? <p className="text-sm text-red-700 md:col-span-2">{formError}</p> : null}
       </form>
 
       <ul className="divide-y divide-stone-200 rounded-lg border border-stone-200 bg-white">
         {users.map((user) => (
-          <li key={user._id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <li key={user.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="font-medium">{user.name}</p>
               <p className="text-sm text-stone-500">
@@ -112,12 +116,10 @@ export function UsersManager({
               <select
                 defaultValue={user.role}
                 className="rounded border border-stone-300 px-2 py-1 text-xs"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const next = e.target.value as Role;
-                  startTransition(async () => {
-                    await updateUser(user._id, { role: next });
-                    router.refresh();
-                  });
+                  await updateUser({ variables: { id: user.id, input: { role: next } } });
+                  await refetch();
                 }}
               >
                 {assignable.concat(user.role === "OWNER" ? (["OWNER"] as Role[]) : []).map((r) => (
@@ -129,14 +131,15 @@ export function UsersManager({
               <button
                 type="button"
                 className="text-xs text-stone-600 hover:underline"
-                onClick={() =>
-                  startTransition(async () => {
-                    await updateUser(user._id, {
-                      status: user.status === "active" ? "disabled" : "active",
-                    });
-                    router.refresh();
-                  })
-                }
+                onClick={async () => {
+                  await updateUser({
+                    variables: {
+                      id: user.id,
+                      input: { status: user.status === "active" ? "disabled" : "active" },
+                    },
+                  });
+                  await refetch();
+                }}
               >
                 {user.status === "active" ? "Disable" : "Enable"}
               </button>

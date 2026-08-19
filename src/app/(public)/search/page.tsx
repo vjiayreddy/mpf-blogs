@@ -1,5 +1,4 @@
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
+import { fetchPublicPosts } from "@/lib/graphql/posts";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
 import type { Metadata } from "next";
@@ -16,38 +15,9 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q } = await searchParams;
-  await connectDB();
-
-  let posts: Array<{
-    _id: unknown;
-    title: string;
-    slug: string;
-    excerpt?: string;
-    coverImage?: string;
-    publishedAt?: Date | null;
-    readingTime?: number;
-  }> = [];
-
-  if (q?.trim()) {
-    try {
-      posts = await Post.find(
-        { status: "published", $text: { $search: q.trim() } },
-        { score: { $meta: "textScore" } }
-      )
-        .sort({ score: { $meta: "textScore" } })
-        .limit(30)
-        .lean();
-    } catch {
-      const regex = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      posts = await Post.find({
-        status: "published",
-        $or: [{ title: regex }, { excerpt: regex }, { plaintext: regex }],
-      })
-        .sort({ publishedAt: -1 })
-        .limit(30)
-        .lean();
-    }
-  }
+  const posts = q?.trim()
+    ? await fetchPublicPosts({ status: "published", q: q.trim() })
+    : [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">
@@ -63,7 +33,7 @@ export default async function SearchPage({
       <div className="mt-10 grid gap-10 md:grid-cols-3">
         {posts.map((post) => (
           <PostCard
-            key={String(post._id)}
+            key={post.id}
             title={post.title}
             slug={post.slug}
             excerpt={post.excerpt || undefined}

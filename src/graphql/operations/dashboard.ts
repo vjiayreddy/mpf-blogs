@@ -1,4 +1,6 @@
-export const DASHBOARD_STATS_QUERY = /* GraphQL */ `
+import { gql } from "@apollo/client";
+
+export const DASHBOARD_STATS_QUERY = gql`
   query BlogPortalDashboardStats {
     blogPortalDashboardStats {
       drafts

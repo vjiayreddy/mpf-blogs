@@ -1,17 +1,12 @@
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
 import { fetchPublicSettings } from "@/lib/graphql/settings";
+import { fetchPublicPosts } from "@/lib/graphql/posts";
 import { siteUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const settings = await fetchPublicSettings();
-  await connectDB();
-  const posts = await Post.find({ status: "published" })
-    .sort({ publishedAt: -1 })
-    .limit(50)
-    .lean();
+  const posts = (await fetchPublicPosts({ status: "published" })).slice(0, 50);
 
   const items = posts
     .map((post) => {

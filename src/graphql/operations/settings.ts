@@ -1,4 +1,6 @@
-export const SETTINGS_QUERY = /* GraphQL */ `
+import { gql } from "@apollo/client";
+
+export const SETTINGS_QUERY = gql`
   query GetSettings {
     blogPortalSettings {
       id
@@ -20,37 +22,9 @@ export const SETTINGS_QUERY = /* GraphQL */ `
   }
 `;
 
-export const UPDATE_SETTINGS_MUTATION = /* GraphQL */ `
-  mutation UpdateSettings(
-    $siteTitle: String
-    $siteDescription: String
-    $logo: String
-    $twitter: String
-    $github: String
-    $linkedin: String
-    $website: String
-    $seoTitle: String
-    $seoDescription: String
-    $ogImage: String
-  ) {
-    blogPortalUpdateSettings(
-      input: {
-        siteTitle: $siteTitle
-        siteDescription: $siteDescription
-        logo: $logo
-        socialLinks: {
-          twitter: $twitter
-          github: $github
-          linkedin: $linkedin
-          website: $website
-        }
-        defaultSeo: {
-          title: $seoTitle
-          description: $seoDescription
-          ogImage: $ogImage
-        }
-      }
-    ) {
+export const UPDATE_SETTINGS_MUTATION = gql`
+  mutation UpdateSettings($input: BlogPortalSettingsInput!) {
+    blogPortalUpdateSettings(input: $input) {
       id
       siteTitle
       siteDescription

@@ -1,4 +1,4 @@
-import { graphqlRequest, GraphqlError } from "@/lib/graphql/client";
+import { apolloQuery } from "@/lib/apollo/rsc";
 import { LIST_TAXONOMIES_QUERY } from "@/graphql/operations/taxonomies";
 
 export type TaxonomyItem = {
@@ -44,27 +44,17 @@ type ListTaxonomiesData = {
   }>;
 };
 
-export async function fetchTaxonomies(accessToken?: string | null) {
-  const data = await graphqlRequest<ListTaxonomiesData>({
-    query: LIST_TAXONOMIES_QUERY,
-    accessToken,
-  });
-  return {
-    categories: (data.blogPortalCategories || []).map(toItem),
-    tags: (data.blogPortalTags || []).map(toItem),
-    series: (data.blogPortalSeriesList || []).map(toItem),
-  };
-}
-
 export async function fetchPublicTaxonomies() {
   try {
-    return await fetchTaxonomies();
+    const data = await apolloQuery<ListTaxonomiesData>({ query: LIST_TAXONOMIES_QUERY });
+    return {
+      categories: (data.blogPortalCategories || []).map(toItem),
+      tags: (data.blogPortalTags || []).map(toItem),
+      series: (data.blogPortalSeriesList || []).map(toItem),
+    };
   } catch (err) {
-    if (err instanceof GraphqlError) {
-      console.error("[graphql] ListTaxonomies failed:", err.message);
-      return { categories: [], tags: [], series: [] };
-    }
-    throw err;
+    console.error("[graphql] ListTaxonomies failed:", err);
+    return { categories: [], tags: [], series: [] };
   }
 }
 

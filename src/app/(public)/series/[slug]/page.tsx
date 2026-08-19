@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
-import { connectDB } from "@/lib/db";
-import { Series } from "@/models/Series";
-import { Post } from "@/models/Post";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
+import { fetchPublicPosts, postsInSeries } from "@/lib/graphql/posts";
 import { fetchPublicTaxonomies, findBySlug } from "@/lib/graphql/taxonomies";
 import type { Metadata } from "next";
 
@@ -34,13 +32,7 @@ export default async function SeriesPage({
   const item = findBySlug(series, slug);
   if (!item) notFound();
 
-  await connectDB();
-  const mongoSeries = await Series.findOne({ slug }).lean();
-  const posts = mongoSeries
-    ? await Post.find({ status: "published", seriesId: mongoSeries._id })
-        .sort({ seriesOrder: 1, publishedAt: 1 })
-        .lean()
-    : [];
+  const posts = postsInSeries(await fetchPublicPosts({ status: "published" }), item.id);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">
@@ -49,7 +41,7 @@ export default async function SeriesPage({
       <div className="mt-10 grid gap-10 md:grid-cols-3">
         {posts.map((post) => (
           <PostCard
-            key={String(post._id)}
+            key={post.id}
             title={post.title}
             slug={post.slug}
             excerpt={post.excerpt || undefined}

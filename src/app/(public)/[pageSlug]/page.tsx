@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { connectDB } from "@/lib/db";
-import { Page } from "@/models/Page";
+import { fetchPublicPageBySlug } from "@/lib/graphql/pages";
 import { buildMetadata } from "@/lib/seo";
 import { TrackPageView } from "@/components/public/track-page-view";
 import type { Metadata } from "next";
@@ -26,14 +25,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { pageSlug } = await params;
   if (RESERVED.has(pageSlug)) return {};
-  await connectDB();
-  const page = await Page.findOne({ slug: pageSlug, status: "published" }).lean();
+  const page = await fetchPublicPageBySlug(pageSlug);
   if (!page) return {};
   return buildMetadata({
     title: page.seo?.title || page.title,
-    description: page.seo?.description || page.excerpt,
+    description: page.seo?.description || page.excerpt || "",
     path: `/${page.slug}`,
-    image: page.seo?.ogImage || page.coverImage,
+    image: page.seo?.ogImage || page.coverImage || undefined,
   });
 }
 
@@ -45,8 +43,7 @@ export default async function StaticPage({
   const { pageSlug } = await params;
   if (RESERVED.has(pageSlug)) notFound();
 
-  await connectDB();
-  const page = await Page.findOne({ slug: pageSlug, status: "published" }).lean();
+  const page = await fetchPublicPageBySlug(pageSlug);
   if (!page) notFound();
 
   return (

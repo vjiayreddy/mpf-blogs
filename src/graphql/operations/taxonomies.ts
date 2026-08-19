@@ -1,4 +1,6 @@
-export const LIST_TAXONOMIES_QUERY = /* GraphQL */ `
+import { gql } from "@apollo/client";
+
+export const LIST_TAXONOMIES_QUERY = gql`
   query ListTaxonomies {
     blogPortalCategories {
       id
@@ -21,9 +23,9 @@ export const LIST_TAXONOMIES_QUERY = /* GraphQL */ `
   }
 `;
 
-export const CREATE_CATEGORY_MUTATION = /* GraphQL */ `
-  mutation CreateCategory($name: String!, $slug: String, $description: String) {
-    blogPortalCreateCategory(input: { name: $name, slug: $slug, description: $description }) {
+export const CREATE_CATEGORY_MUTATION = gql`
+  mutation CreateCategory($input: BlogPortalTaxonomyInput!) {
+    blogPortalCreateCategory(input: $input) {
       id
       name
       slug
@@ -32,9 +34,9 @@ export const CREATE_CATEGORY_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const UPDATE_CATEGORY_MUTATION = /* GraphQL */ `
-  mutation UpdateCategory($id: ID!, $name: String, $description: String) {
-    blogPortalUpdateCategory(id: $id, input: { name: $name, description: $description }) {
+export const UPDATE_CATEGORY_MUTATION = gql`
+  mutation UpdateCategory($id: ID!, $input: BlogPortalTaxonomyUpdateInput!) {
+    blogPortalUpdateCategory(id: $id, input: $input) {
       id
       name
       slug
@@ -43,9 +45,9 @@ export const UPDATE_CATEGORY_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const CREATE_TAG_MUTATION = /* GraphQL */ `
-  mutation CreateTag($name: String!, $slug: String) {
-    blogPortalCreateTag(input: { name: $name, slug: $slug }) {
+export const CREATE_TAG_MUTATION = gql`
+  mutation CreateTag($input: BlogPortalTaxonomyInput!) {
+    blogPortalCreateTag(input: $input) {
       id
       name
       slug
@@ -53,9 +55,9 @@ export const CREATE_TAG_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const UPDATE_TAG_MUTATION = /* GraphQL */ `
-  mutation UpdateTag($id: ID!, $name: String) {
-    blogPortalUpdateTag(id: $id, input: { name: $name }) {
+export const UPDATE_TAG_MUTATION = gql`
+  mutation UpdateTag($id: ID!, $input: BlogPortalTaxonomyUpdateInput!) {
+    blogPortalUpdateTag(id: $id, input: $input) {
       id
       name
       slug
@@ -63,11 +65,9 @@ export const UPDATE_TAG_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const CREATE_SERIES_MUTATION = /* GraphQL */ `
-  mutation CreateSeries($name: String!, $slug: String, $description: String, $coverImage: String) {
-    blogPortalCreateSeries(
-      input: { name: $name, slug: $slug, description: $description, coverImage: $coverImage }
-    ) {
+export const CREATE_SERIES_MUTATION = gql`
+  mutation CreateSeries($input: BlogPortalTaxonomyInput!) {
+    blogPortalCreateSeries(input: $input) {
       id
       name
       slug
@@ -77,12 +77,9 @@ export const CREATE_SERIES_MUTATION = /* GraphQL */ `
   }
 `;
 
-export const UPDATE_SERIES_MUTATION = /* GraphQL */ `
-  mutation UpdateSeries($id: ID!, $name: String, $description: String, $coverImage: String) {
-    blogPortalUpdateSeries(
-      id: $id
-      input: { name: $name, description: $description, coverImage: $coverImage }
-    ) {
+export const UPDATE_SERIES_MUTATION = gql`
+  mutation UpdateSeries($id: ID!, $input: BlogPortalTaxonomyUpdateInput!) {
+    blogPortalUpdateSeries(id: $id, input: $input) {
       id
       name
       slug

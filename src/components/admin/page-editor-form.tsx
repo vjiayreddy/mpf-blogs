@@ -2,34 +2,69 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "@apollo/client/react";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
-import { createPage, updatePage } from "@/app/actions/content";
+import {
+  CREATE_PAGE_MUTATION,
+  GET_PAGE_QUERY,
+  UPDATE_PAGE_MUTATION,
+} from "@/graphql/operations/pages";
+import { toPageInput, type RawGraphqlPage } from "@/lib/graphql/pages-input";
+import { slugify } from "@/lib/utils";
 import type { ContentStatus } from "@/lib/constants";
 
-type PageFormProps = {
+type GetPageData = { blogPortalPage: RawGraphqlPage | null };
+type CreatePageData = { blogPortalCreatePage: { id: string } };
+
+export function PageEditorForm({
+  mode,
+  pageId,
+}: {
   mode: "create" | "edit";
   pageId?: string;
-  initial?: {
-    title?: string;
-    slug?: string;
-    excerpt?: string;
-    lexicalJSON?: string;
-    html?: string;
-    status?: ContentStatus;
-    coverImage?: string;
-    scheduledAt?: string | null;
-    seo?: { title?: string; description?: string };
-  };
-};
+}) {
+  const { data, loading, error } = useQuery<GetPageData>(GET_PAGE_QUERY, {
+    variables: { id: pageId },
+    skip: !pageId,
+  });
 
-export function PageEditorForm({ mode, pageId, initial }: PageFormProps) {
+  if (mode === "edit" && loading) {
+    return <p className="text-sm text-stone-500">Loading page…</p>;
+  }
+  if (mode === "edit" && (error || !data?.blogPortalPage)) {
+    return <p className="text-sm text-red-700">{error?.message || "Page not found"}</p>;
+  }
+
+  return (
+    <PageEditorFields
+      key={pageId || "new"}
+      mode={mode}
+      pageId={pageId}
+      initial={data?.blogPortalPage || undefined}
+    />
+  );
+}
+
+function PageEditorFields({
+  mode,
+  pageId,
+  initial,
+}: {
+  mode: "create" | "edit";
+  pageId?: string;
+  initial?: RawGraphqlPage;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [createPage] = useMutation<CreatePageData>(CREATE_PAGE_MUTATION);
+  const [updatePage] = useMutation(UPDATE_PAGE_MUTATION);
   const [title, setTitle] = useState(initial?.title || "");
   const [slug, setSlug] = useState(initial?.slug || "");
   const [excerpt, setExcerpt] = useState(initial?.excerpt || "");
   const [coverImage, setCoverImage] = useState(initial?.coverImage || "");
-  const [status, setStatus] = useState<ContentStatus>(initial?.status || "draft");
+  const [status, setStatus] = useState<ContentStatus>(
+    (initial?.status as ContentStatus) || "draft"
+  );
   const [message, setMessage] = useState("");
   const contentRef = useRef({
     lexicalJSON: initial?.lexicalJSON || "",
@@ -39,30 +74,39 @@ export function PageEditorForm({ mode, pageId, initial }: PageFormProps) {
 
   const persist = useCallback(
     async (nextStatus?: ContentStatus) => {
-      const payload = {
+      const input = toPageInput({
         title: title || "Untitled",
-        slug: slug || undefined,
+        slug: slug || slugify(title || "untitled"),
         excerpt,
         lexicalJSON: contentRef.current.lexicalJSON,
         html: contentRef.current.html,
         status: nextStatus || status,
         coverImage,
         seo: { title: title || undefined, description: excerpt || undefined },
-      };
+      });
       try {
         if (mode === "create" && !currentId.current) {
-          const created = await createPage(payload);
-          currentId.current = created._id;
-          router.replace(`/admin/pages/${created._id}`);
+          const result = await createPage({ variables: { input } });
+          const createdId = result.data?.blogPortalCreatePage.id;
+          if (!createdId) throw new Error("Create page failed");
+          currentId.current = createdId;
+          router.replace(`/admin/pages/${createdId}`);
         } else if (currentId.current) {
-          await updatePage(currentId.current, payload, { createRevision: true });
+          await updatePage({
+            variables: {
+              id: currentId.current,
+              input,
+              createRevision: true,
+            },
+          });
         }
+        if (nextStatus) setStatus(nextStatus);
         setMessage("Saved");
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Save failed");
       }
     },
-    [title, slug, excerpt, status, coverImage, mode, router]
+    [title, slug, excerpt, status, coverImage, mode, router, createPage, updatePage]
   );
 
   useEffect(() => {
@@ -92,12 +136,7 @@ export function PageEditorForm({ mode, pageId, initial }: PageFormProps) {
           <button
             type="button"
             disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                setStatus("published");
-                await persist("published");
-              })
-            }
+            onClick={() => startTransition(async () => persist("published"))}
             className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
           >
             Publish
@@ -111,7 +150,7 @@ export function PageEditorForm({ mode, pageId, initial }: PageFormProps) {
         className="w-full border-0 border-b border-stone-200 bg-transparent pb-3 text-3xl font-semibold outline-none"
       />
       <LexicalEditor
-        initialJSON={initial?.lexicalJSON}
+        initialJSON={initial?.lexicalJSON || undefined}
         onChange={(payload) => {
           contentRef.current = payload;
         }}

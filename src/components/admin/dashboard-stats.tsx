@@ -1,64 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
+import { useQuery } from "@apollo/client/react";
+import { DASHBOARD_STATS_QUERY } from "@/graphql/operations/dashboard";
 
-type DashboardStats = {
-  drafts: number;
-  scheduled: number;
-  published: number;
-  recentDrafts: Array<{ id: string; title: string; slug: string; status: string }>;
-  scheduledQueue: Array<{
-    id: string;
-    title: string;
-    slug: string;
-    scheduledAt?: string | null;
-  }>;
+type DashboardData = {
+  blogPortalDashboardStats: {
+    drafts: number;
+    scheduled: number;
+    published: number;
+    recentDrafts: Array<{ id: string; title: string; slug: string; status: string }>;
+    scheduledQueue: Array<{
+      id: string;
+      title: string;
+      slug: string;
+      scheduledAt?: string | null;
+    }>;
+  };
 };
 
 export function DashboardStats() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-    void fetch("/api/admin/dashboard-stats")
-      .then(async (res) => {
-        const body = (await res.json()) as DashboardStats & { error?: string };
-        if (!res.ok) throw new Error(body.error || "Failed to load dashboard");
-        return body;
-      })
-      .then((data) => {
-        if (!cancelled) setStats(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load dashboard");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data, loading, error } = useQuery<DashboardData>(DASHBOARD_STATS_QUERY);
 
   if (loading) {
-    return <p className="text-sm text-stone-500">Loading dashboard from GraphQL…</p>;
+    return <p className="text-sm text-stone-500">Loading dashboard…</p>;
   }
 
-  if (error || !stats) {
+  if (error || !data?.blogPortalDashboardStats) {
     return (
       <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800">
-        {error || "Failed to load dashboard"}
+        {error?.message || "Failed to load dashboard"}
       </p>
     );
   }
+
+  const stats = data.blogPortalDashboardStats;
 
   return (
     <>

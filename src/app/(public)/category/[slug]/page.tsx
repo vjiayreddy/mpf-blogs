@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
-import { connectDB } from "@/lib/db";
-import { Category } from "@/models/Category";
-import { Post } from "@/models/Post";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata } from "@/lib/seo";
+import { fetchPublicPosts, postsInCategory } from "@/lib/graphql/posts";
 import { fetchPublicTaxonomies, findBySlug } from "@/lib/graphql/taxonomies";
 import type { Metadata } from "next";
 
@@ -33,17 +31,10 @@ export default async function CategoryPage({
   const category = findBySlug(categories, slug);
   if (!category) notFound();
 
-  await connectDB();
-  const mongoCategory = await Category.findOne({ slug }).lean();
-  const posts = mongoCategory
-    ? await Post.find({
-        status: "published",
-        categoryIds: mongoCategory._id,
-      })
-        .sort({ publishedAt: -1 })
-        .populate("authorId", "name")
-        .lean()
-    : [];
+  const posts = postsInCategory(
+    await fetchPublicPosts({ status: "published" }),
+    category.id
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-14">
@@ -54,7 +45,7 @@ export default async function CategoryPage({
       <div className="mt-10 grid gap-10 md:grid-cols-3">
         {posts.map((post) => (
           <PostCard
-            key={String(post._id)}
+            key={post.id}
             title={post.title}
             slug={post.slug}
             excerpt={post.excerpt || undefined}

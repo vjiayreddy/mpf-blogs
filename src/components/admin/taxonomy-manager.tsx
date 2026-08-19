@@ -1,43 +1,96 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { slugify } from "@/lib/utils";
+import {
+  CREATE_CATEGORY_MUTATION,
+  CREATE_SERIES_MUTATION,
+  CREATE_TAG_MUTATION,
+  LIST_TAXONOMIES_QUERY,
+  UPDATE_CATEGORY_MUTATION,
+  UPDATE_SERIES_MUTATION,
+  UPDATE_TAG_MUTATION,
+} from "@/graphql/operations/taxonomies";
 
-type Item = { _id: string; name: string; slug: string; description?: string };
+type Item = { id: string; name: string; slug: string; description?: string | null };
 
-export function TaxonomyManager({
-  title,
-  items,
-  onCreate,
-  onUpdate,
-  onDelete,
-  withDescription,
-}: {
-  title: string;
-  items: Item[];
-  onCreate: (input: { name: string; description?: string }) => Promise<unknown>;
-  onUpdate: (id: string, input: { name: string; description?: string }) => Promise<unknown>;
-  onDelete?: (id: string) => Promise<unknown>;
-  withDescription?: boolean;
-}) {
-  const router = useRouter();
+type TaxonomiesData = {
+  blogPortalCategories: Item[];
+  blogPortalTags: Item[];
+  blogPortalSeriesList: Item[];
+};
+
+const KIND = {
+  category: {
+    title: "Categories",
+    withDescription: true,
+    listKey: "blogPortalCategories" as const,
+    create: CREATE_CATEGORY_MUTATION,
+    update: UPDATE_CATEGORY_MUTATION,
+    resultCreate: "blogPortalCreateCategory",
+    resultUpdate: "blogPortalUpdateCategory",
+  },
+  tag: {
+    title: "Tags",
+    withDescription: false,
+    listKey: "blogPortalTags" as const,
+    create: CREATE_TAG_MUTATION,
+    update: UPDATE_TAG_MUTATION,
+    resultCreate: "blogPortalCreateTag",
+    resultUpdate: "blogPortalUpdateTag",
+  },
+  series: {
+    title: "Series",
+    withDescription: true,
+    listKey: "blogPortalSeriesList" as const,
+    create: CREATE_SERIES_MUTATION,
+    update: UPDATE_SERIES_MUTATION,
+    resultCreate: "blogPortalCreateSeries",
+    resultUpdate: "blogPortalUpdateSeries",
+  },
+};
+
+export function TaxonomyManager({ kind }: { kind: keyof typeof KIND }) {
+  const config = KIND[kind];
+  const { data, loading, error, refetch } = useQuery<TaxonomiesData>(LIST_TAXONOMIES_QUERY);
+  const [createItem] = useMutation(config.create);
+  const [updateItem] = useMutation(config.update);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+
+  const items = data?.[config.listKey] || [];
+
+  if (loading) return <p className="text-sm text-stone-500">Loading…</p>;
+  if (error) {
+    return <p className="text-sm text-red-700">{error.message}</p>;
+  }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-stone-900">{title}</h1>
+      <h1 className="text-2xl font-semibold text-stone-900">{config.title}</h1>
       <form
         className="flex flex-wrap gap-3 rounded-lg border border-stone-200 bg-white p-4"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          startTransition(async () => {
-            await onCreate({ name, description: withDescription ? description : undefined });
+          setPending(true);
+          try {
+            await createItem({
+              variables: {
+                input: {
+                  name,
+                  slug: slugify(name),
+                  description: config.withDescription ? description : undefined,
+                },
+              },
+            });
             setName("");
             setDescription("");
-            router.refresh();
-          });
+            await refetch();
+          } finally {
+            setPending(false);
+          }
         }}
       >
         <input
@@ -47,7 +100,7 @@ export function TaxonomyManager({
           placeholder="Name"
           className="rounded-md border border-stone-300 px-3 py-2 text-sm"
         />
-        {withDescription ? (
+        {config.withDescription ? (
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -65,7 +118,7 @@ export function TaxonomyManager({
       </form>
       <ul className="divide-y divide-stone-200 rounded-lg border border-stone-200 bg-white">
         {items.map((item) => (
-          <li key={item._id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="font-medium text-stone-900">{item.name}</p>
               <p className="text-xs text-stone-500">/{item.slug}</p>
@@ -73,36 +126,18 @@ export function TaxonomyManager({
                 <p className="mt-1 text-sm text-stone-600">{item.description}</p>
               ) : null}
             </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="text-sm text-stone-600 hover:underline"
-                onClick={() => {
-                  const next = window.prompt("Rename", item.name);
-                  if (!next) return;
-                  startTransition(async () => {
-                    await onUpdate(item._id, { name: next });
-                    router.refresh();
-                  });
-                }}
-              >
-                Rename
-              </button>
-              {onDelete ? (
-                <button
-                  type="button"
-                  className="text-sm text-red-700 hover:underline"
-                  onClick={() =>
-                    startTransition(async () => {
-                      await onDelete(item._id);
-                      router.refresh();
-                    })
-                  }
-                >
-                  Delete
-                </button>
-              ) : null}
-            </div>
+            <button
+              type="button"
+              className="text-sm text-stone-600 hover:underline"
+              onClick={async () => {
+                const next = window.prompt("Rename", item.name);
+                if (!next) return;
+                await updateItem({ variables: { id: item.id, input: { name: next } } });
+                await refetch();
+              }}
+            >
+              Rename
+            </button>
           </li>
         ))}
         {items.length === 0 ? (

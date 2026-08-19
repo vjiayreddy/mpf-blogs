@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { connectDB } from "@/lib/db";
-import { Post } from "@/models/Post";
 import { fetchPublicSettings } from "@/lib/graphql/settings";
+import { authorName, fetchPublicPosts } from "@/lib/graphql/posts";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
 import type { Metadata } from "next";
@@ -18,19 +17,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const settings = await fetchPublicSettings();
-  await connectDB();
-  const [featured, latest] = await Promise.all([
-    Post.find({ status: "published", featured: true })
-      .sort({ publishedAt: -1 })
-      .limit(3)
-      .populate("authorId", "name")
-      .lean(),
-    Post.find({ status: "published" })
-      .sort({ publishedAt: -1 })
-      .limit(9)
-      .populate("authorId", "name")
-      .lean(),
-  ]);
+  const published = await fetchPublicPosts({ status: "published" });
+  const featured = published.filter((post) => post.featured).slice(0, 3);
+  const latest = published.slice(0, 9);
 
   const jsonLd = websiteJsonLd(settings.siteTitle, settings.siteDescription || "");
 
@@ -74,18 +63,14 @@ export default async function HomePage() {
           <div className="mt-8 grid gap-10 md:grid-cols-3">
             {featured.map((post) => (
               <PostCard
-                key={String(post._id)}
+                key={post.id}
                 title={post.title}
                 slug={post.slug}
                 excerpt={post.excerpt || undefined}
                 coverImage={post.coverImage || undefined}
                 publishedAt={post.publishedAt}
                 readingTime={post.readingTime}
-                authorName={
-                  typeof post.authorId === "object" && post.authorId && "name" in post.authorId
-                    ? String(post.authorId.name)
-                    : undefined
-                }
+                authorName={authorName(post)}
               />
             ))}
           </div>
@@ -102,23 +87,19 @@ export default async function HomePage() {
         <div className="mt-8 grid gap-10 md:grid-cols-3">
           {latest.map((post) => (
             <PostCard
-              key={String(post._id)}
+              key={post.id}
               title={post.title}
               slug={post.slug}
               excerpt={post.excerpt || undefined}
               coverImage={post.coverImage || undefined}
               publishedAt={post.publishedAt}
               readingTime={post.readingTime}
-              authorName={
-                typeof post.authorId === "object" && post.authorId && "name" in post.authorId
-                  ? String(post.authorId.name)
-                  : undefined
-              }
+              authorName={authorName(post)}
             />
           ))}
         </div>
         {latest.length === 0 ? (
-          <p className="mt-6 text-stone-500">No published posts yet. Seed the database to get started.</p>
+          <p className="mt-6 text-stone-500">No published posts yet.</p>
         ) : null}
       </section>
     </div>
