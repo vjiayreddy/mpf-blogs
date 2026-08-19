@@ -1,13 +1,13 @@
 # MPF Blog Portal
 
-Ghost-like publishing platform (Phase 1 MVP) built with **Next.js**, **Tailwind CSS**, **Lexical**, **Auth.js**, **MongoDB**, and **Cloudinary**.
+Ghost-like publishing platform (Phase 1 MVP) built with **Next.js**, **Tailwind CSS**, **Lexical**, **Auth.js**, **Apollo Client**, and **Cloudinary**. Content is served from the GraphQL API.
 
 ## Features
 
 - Role-based admin (`AUTHOR`, `EDITOR`, `ADMIN`, `OWNER`)
 - Posts & pages with Lexical editor, autosave, revisions, preview, scheduling
 - Categories, tags, series
-- Cloudinary media library
+- Cloudinary uploads + GraphQL media library
 - Public blog with SEO metadata, Open Graph, JSON-LD, RSS, sitemap
 - Full-text search
 - Page-view analytics dashboard
@@ -22,18 +22,16 @@ cp .env.example .env.local
 
 Required:
 
-- `MONGODB_URI` — MongoDB connection string
 - `AUTH_SECRET` — random secret for Auth.js
 - `NEXT_PUBLIC_SITE_URL` — e.g. `http://localhost:3000`
+- `NEXT_PUBLIC_GRAPHQL_URL` / `GRAPHQL_URL` — GraphQL endpoint
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` — for media uploads
 - `CRON_SECRET` — bearer token for `/api/cron/publish`
-- `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD` — seed account
 
 2. Install & run:
 
 ```bash
 npm install
-npm run seed
 npm run dev
 ```
 
@@ -43,7 +41,7 @@ npm run dev
 - Admin: [http://localhost:3000/admin](http://localhost:3000/admin)
 - Login: [http://localhost:3000/login](http://localhost:3000/login)
 
-Default seed owner: `owner@example.com` / `ChangeMe123!`
+Sign in with a GraphQL blog-portal account (not a local seed user).
 
 ## Scripts
 
@@ -52,8 +50,8 @@ Default seed owner: `owner@example.com` / `ChangeMe123!`
 | `npm run dev` | Start Next.js dev server |
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
-| `npm run seed` | Seed owner user + sample content |
 | `npm run lint` | ESLint |
+| `npm run codegen` | GraphQL codegen |
 
 ## Scheduling
 
@@ -70,10 +68,10 @@ On Vercel, `vercel.json` runs this every 5 minutes.
 ```
 src/app/(public)/     Public site routes
 src/app/(admin)/admin Admin dashboard
-src/app/api/          Auth, upload, analytics, cron
+src/app/api/          Auth, Cloudinary upload, cron
 src/components/       Editor, admin, public UI
-src/models/           Mongoose models
-src/lib/              Auth, DB, RBAC, SEO, validators
+src/graphql/          Operations
+src/lib/              Auth, Apollo, RBAC, SEO, validators
 ```
 
 ## Roles
