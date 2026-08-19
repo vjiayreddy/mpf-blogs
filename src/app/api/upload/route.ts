@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
 import { canUploadMedia } from "@/lib/rbac";
 import { configureCloudinary, isCloudinaryConfigured } from "@/lib/cloudinary";
-import { Media } from "@/models/Media";
 import type { Role } from "@/lib/constants";
 
 export async function POST(request: Request) {
@@ -35,8 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 400 });
   }
 
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  const buffer = Buffer.from(await file.arrayBuffer());
   const cloudinary = configureCloudinary();
 
   const uploaded = await new Promise<{
@@ -45,7 +42,6 @@ export async function POST(request: Request) {
     width: number;
     height: number;
     format: string;
-    bytes: number;
   }>((resolve, reject) => {
     cloudinary.uploader
       .upload_stream(
@@ -58,24 +54,13 @@ export async function POST(request: Request) {
       .end(buffer);
   });
 
-  await connectDB();
-  const media = await Media.create({
-    cloudinaryPublicId: uploaded.public_id,
+  return NextResponse.json({
+    id: uploaded.public_id,
     url: uploaded.secure_url,
+    publicId: uploaded.public_id,
     width: uploaded.width,
     height: uploaded.height,
     format: uploaded.format,
     alt,
-    bytes: uploaded.bytes,
-    uploadedBy: session.user.id,
-  });
-
-  return NextResponse.json({
-    id: media._id.toString(),
-    url: media.url,
-    publicId: media.cloudinaryPublicId,
-    width: media.width,
-    height: media.height,
-    alt: media.alt,
   });
 }
