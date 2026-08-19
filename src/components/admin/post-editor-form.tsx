@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { useSession } from "next-auth/react";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
 import { AiGeneratePanel, type AiGeneratedPost } from "@/components/admin/ai-generate-panel";
+import { RevisionHistory, type RevisionRecord } from "@/components/admin/revision-history";
 import {
   CREATE_POST_MUTATION,
   GET_POST_QUERY,
@@ -104,6 +105,7 @@ function PostEditorFields({
   const [message, setMessage] = useState("");
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [htmlToImport, setHtmlToImport] = useState<{ html: string; key: number } | undefined>();
+  const [jsonToImport, setJsonToImport] = useState<{ json: string; key: number } | undefined>();
   const contentRef = useRef({
     lexicalJSON: initial?.lexicalJSON || "",
     html: initial?.html || "",
@@ -222,6 +224,21 @@ function PostEditorFields({
     setMessage("AI draft applied — review and save");
   }, []);
 
+  const restoreRevision = useCallback((revision: RevisionRecord) => {
+    if (revision.title) setTitle(revision.title);
+    contentRef.current = {
+      lexicalJSON: revision.lexicalJSON || "",
+      html: revision.html || "",
+    };
+    importKey.current += 1;
+    if (revision.lexicalJSON) {
+      setJsonToImport({ json: revision.lexicalJSON, key: importKey.current });
+    } else if (revision.html) {
+      setHtmlToImport({ html: revision.html, key: importKey.current });
+    }
+    setMessage("Revision restored — review and save");
+  }, []);
+
   const toggleId = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 
@@ -308,6 +325,7 @@ function PostEditorFields({
       <LexicalEditor
         initialJSON={initial?.lexicalJSON || undefined}
         htmlToImport={htmlToImport}
+        jsonToImport={jsonToImport}
         onChange={onEditorChange}
       />
 
@@ -441,6 +459,15 @@ function PostEditorFields({
           />
         </label>
       </div>
+
+      {currentId ? (
+        <RevisionHistory
+          documentId={currentId}
+          documentType="post"
+          refreshKey={lastSaved}
+          onRestore={restoreRevision}
+        />
+      ) : null}
     </div>
   );
 }

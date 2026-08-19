@@ -51,7 +51,6 @@ Sign in with a GraphQL blog-portal account (not a local seed user).
 | `npm run build` | Production build |
 | `npm run start` | Start production server |
 | `npm run lint` | ESLint |
-| `npm run codegen` | GraphQL codegen |
 
 ## Scheduling
 

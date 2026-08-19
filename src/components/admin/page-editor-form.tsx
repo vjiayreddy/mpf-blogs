@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
+import { RevisionHistory, type RevisionRecord } from "@/components/admin/revision-history";
 import {
   CREATE_PAGE_MUTATION,
   GET_PAGE_QUERY,
@@ -66,11 +67,15 @@ function PageEditorFields({
     (initial?.status as ContentStatus) || "draft"
   );
   const [message, setMessage] = useState("");
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [jsonToImport, setJsonToImport] = useState<{ json: string; key: number } | undefined>();
+  const [htmlToImport, setHtmlToImport] = useState<{ html: string; key: number } | undefined>();
   const contentRef = useRef({
     lexicalJSON: initial?.lexicalJSON || "",
     html: initial?.html || "",
   });
-  const currentId = useRef(pageId);
+  const [currentId, setCurrentId] = useState(pageId);
+  const importKey = useRef(0);
 
   const persist = useCallback(
     async (nextStatus?: ContentStatus) => {
@@ -85,16 +90,16 @@ function PageEditorFields({
         seo: { title: title || undefined, description: excerpt || undefined },
       });
       try {
-        if (mode === "create" && !currentId.current) {
+        if (mode === "create" && !currentId) {
           const result = await createPage({ variables: { input } });
           const createdId = result.data?.blogPortalCreatePage.id;
           if (!createdId) throw new Error("Create page failed");
-          currentId.current = createdId;
+          setCurrentId(createdId);
           router.replace(`/admin/pages/${createdId}`);
-        } else if (currentId.current) {
+        } else if (currentId) {
           await updatePage({
             variables: {
-              id: currentId.current,
+              id: currentId,
               input,
               createRevision: true,
             },
@@ -102,11 +107,12 @@ function PageEditorFields({
         }
         if (nextStatus) setStatus(nextStatus);
         setMessage("Saved");
+        setLastSaved(new Date().toLocaleTimeString());
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Save failed");
       }
     },
-    [title, slug, excerpt, status, coverImage, mode, router, createPage, updatePage]
+    [title, slug, excerpt, status, coverImage, mode, router, createPage, updatePage, currentId]
   );
 
   useEffect(() => {
@@ -116,6 +122,21 @@ function PageEditorFields({
     }, 10000);
     return () => clearInterval(timer);
   }, [persist, title]);
+
+  const restoreRevision = useCallback((revision: RevisionRecord) => {
+    if (revision.title) setTitle(revision.title);
+    contentRef.current = {
+      lexicalJSON: revision.lexicalJSON || "",
+      html: revision.html || "",
+    };
+    importKey.current += 1;
+    if (revision.lexicalJSON) {
+      setJsonToImport({ json: revision.lexicalJSON, key: importKey.current });
+    } else if (revision.html) {
+      setHtmlToImport({ html: revision.html, key: importKey.current });
+    }
+    setMessage("Revision restored — review and save");
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -151,6 +172,8 @@ function PageEditorFields({
       />
       <LexicalEditor
         initialJSON={initial?.lexicalJSON || undefined}
+        htmlToImport={htmlToImport}
+        jsonToImport={jsonToImport}
         onChange={(payload) => {
           contentRef.current = payload;
         }}
@@ -182,6 +205,15 @@ function PageEditorFields({
           />
         </label>
       </div>
+
+      {currentId ? (
+        <RevisionHistory
+          documentId={currentId}
+          documentType="page"
+          refreshKey={lastSaved}
+          onRestore={restoreRevision}
+        />
+      ) : null}
     </div>
   );
 }

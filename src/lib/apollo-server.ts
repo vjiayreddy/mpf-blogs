@@ -6,7 +6,7 @@ import { ApolloClient, registerApolloClient } from "@apollo/client-integration-n
 import { makeApolloCache } from "@/lib/graphql/cache";
 import { getGraphqlUri } from "@/lib/graphql/uri";
 
-export const { getClient, query, PreloadQuery } = registerApolloClient(async () => {
+export const { getClient } = registerApolloClient(async () => {
   const authLink = new SetContextLink(async (prev) => {
     const session = await auth();
     const token = session?.accessToken || process.env.GRAPHQL_ACCESS_TOKEN;
