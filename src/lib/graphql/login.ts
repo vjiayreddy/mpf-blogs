@@ -32,10 +32,21 @@ function isStaffRole(role: string): role is Role {
   return STAFF_ROLES.includes(role as Role) && ROLES.includes(role as Role);
 }
 
+function parseAccessTokenExpires(expires?: string | null): number | undefined {
+  if (!expires) return undefined;
+  const numeric = Number(expires);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric < 1e12 ? Date.now() + numeric * 1000 : numeric;
+  }
+  const parsed = Date.parse(expires);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export async function authenticateBlogPortal(email: string, password: string) {
   const loginData = await apolloQuery<LoginResponse>({
     query: LOGIN_QUERY,
     variables: { source: email, password },
+    auth: "public",
   });
 
   const accessToken = loginData.login?.token;
@@ -44,6 +55,7 @@ export async function authenticateBlogPortal(email: string, password: string) {
   const meData = await apolloQuery<MeResponse>({
     query: BLOG_PORTAL_ME_QUERY,
     context: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: "public",
   });
 
   const me = meData.blogPortalMe;
@@ -65,5 +77,6 @@ export async function authenticateBlogPortal(email: string, password: string) {
     email: me.email || email,
     role: me.role,
     accessToken,
+    accessTokenExpires: parseAccessTokenExpires(loginData.login?.expires),
   };
 }

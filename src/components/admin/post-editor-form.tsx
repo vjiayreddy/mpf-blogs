@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { useSession } from "next-auth/react";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
 import { AiGeneratePanel, type AiGeneratedPost } from "@/components/admin/ai-generate-panel";
-import { RevisionHistory, type RevisionRecord } from "@/components/admin/revision-history";
+import {
+  applyRevisionRestore,
+  consumeRevisionRestore,
+} from "@/lib/revision-restore";
 import {
   CREATE_POST_MUTATION,
   GET_POST_QUERY,
@@ -110,8 +114,10 @@ function PostEditorFields({
     lexicalJSON: initial?.lexicalJSON || "",
     html: initial?.html || "",
   });
-  const autosaveCount = useRef(0);
   const [currentId, setCurrentId] = useState<string | undefined>(postId);
+  const currentIdRef = useRef(currentId);
+  currentIdRef.current = currentId;
+  const savingRef = useRef(false);
   const importKey = useRef(0);
 
   const buildPayload = useCallback(
@@ -155,22 +161,32 @@ function PostEditorFields({
   );
 
   const persist = useCallback(
-    async (opts?: { status?: ContentStatus; revision?: boolean; navigate?: boolean }) => {
+    async (opts?: {
+      status?: ContentStatus;
+      revision?: boolean;
+      navigate?: boolean;
+      allowCreate?: boolean;
+    }) => {
+      if (savingRef.current) return;
+      savingRef.current = true;
       try {
         const input = buildPayload(opts?.status);
-        if (mode === "create" && !currentId) {
+        const existingId = currentIdRef.current;
+        if (mode === "create" && !existingId) {
+          if (opts?.allowCreate === false) return;
           const result = await createPost({ variables: { input } });
           const createdId = result.data?.blogPortalCreatePost.id;
           if (!createdId) throw new Error("Create post failed");
+          currentIdRef.current = createdId;
           setCurrentId(createdId);
           setMessage("Created");
           if (opts?.navigate !== false) {
             router.replace(`/admin/posts/${createdId}`);
           }
-        } else if (currentId) {
+        } else if (existingId) {
           await updatePost({
             variables: {
-              id: currentId,
+              id: existingId,
               input,
               createRevision: Boolean(opts?.revision),
             },
@@ -180,24 +196,42 @@ function PostEditorFields({
         setLastSaved(new Date().toLocaleTimeString());
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Save failed");
+      } finally {
+        savingRef.current = false;
       }
     },
-    [buildPayload, mode, router, createPost, updatePost, currentId]
+    [buildPayload, mode, router, createPost, updatePost]
   );
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (!currentIdRef.current) return;
       if (!title && !contentRef.current.lexicalJSON) return;
-      autosaveCount.current += 1;
       startTransition(() => {
         void persist({
-          revision: autosaveCount.current % 5 === 0,
+          revision: false,
           navigate: false,
+          allowCreate: false,
         });
       });
     }, 10000);
     return () => clearInterval(timer);
   }, [persist, title]);
+
+  useEffect(() => {
+    if (!postId) return;
+    const pending = consumeRevisionRestore("post", postId);
+    if (!pending) return;
+    applyRevisionRestore(
+      pending,
+      setTitle,
+      contentRef,
+      importKey,
+      setJsonToImport,
+      setHtmlToImport
+    );
+    setMessage("Revision restored — review and save");
+  }, [postId]);
 
   const onEditorChange = useCallback((payload: { lexicalJSON: string; html: string }) => {
     contentRef.current = payload;
@@ -224,21 +258,6 @@ function PostEditorFields({
     setMessage("AI draft applied — review and save");
   }, []);
 
-  const restoreRevision = useCallback((revision: RevisionRecord) => {
-    if (revision.title) setTitle(revision.title);
-    contentRef.current = {
-      lexicalJSON: revision.lexicalJSON || "",
-      html: revision.html || "",
-    };
-    importKey.current += 1;
-    if (revision.lexicalJSON) {
-      setJsonToImport({ json: revision.lexicalJSON, key: importKey.current });
-    } else if (revision.html) {
-      setHtmlToImport({ html: revision.html, key: importKey.current });
-    }
-    setMessage("Revision restored — review and save");
-  }, []);
-
   const toggleId = (list: string[], id: string) =>
     list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 
@@ -250,20 +269,32 @@ function PostEditorFields({
             {mode === "create" ? "New post" : "Edit post"}
           </h1>
           <p className="text-sm text-stone-500">
-            {lastSaved ? `Last saved ${lastSaved}` : "Autosave every 10s"}
+            {lastSaved
+              ? `Last saved ${lastSaved}`
+              : currentId
+                ? "Autosave every 10s"
+                : "Save a draft to enable autosave"}
             {message ? ` · ${message}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {currentId ? (
-            <a
-              href={`/admin/preview/post/${currentId}`}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium"
-            >
-              Preview
-            </a>
+            <>
+              <Link
+                href={`/admin/posts/${currentId}/revisions`}
+                className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium"
+              >
+                Revisions
+              </Link>
+              <a
+                href={`/admin/preview/post/${currentId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium"
+              >
+                Preview
+              </a>
+            </>
           ) : null}
           <button
             type="button"
@@ -459,15 +490,6 @@ function PostEditorFields({
           />
         </label>
       </div>
-
-      {currentId ? (
-        <RevisionHistory
-          documentId={currentId}
-          documentType="post"
-          refreshKey={lastSaved}
-          onRestore={restoreRevision}
-        />
-      ) : null}
     </div>
   );
 }

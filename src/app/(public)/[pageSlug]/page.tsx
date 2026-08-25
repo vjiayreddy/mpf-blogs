@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { fetchPublicPageBySlug } from "@/lib/graphql/pages";
 import { buildMetadata } from "@/lib/seo";
 import { TrackPageView } from "@/components/public/track-page-view";
+import { sanitizeRichHtml } from "@/lib/sanitize-html";
+import { safeMediaUrl } from "@/lib/safe-url";
 import type { Metadata } from "next";
 
 const RESERVED = new Set([
@@ -31,7 +33,7 @@ export async function generateMetadata({
     title: page.seo?.title || page.title,
     description: page.seo?.description || page.excerpt || "",
     path: `/${page.slug}`,
-    image: page.seo?.ogImage || page.coverImage || undefined,
+    image: safeMediaUrl(page.seo?.ogImage) || safeMediaUrl(page.coverImage),
   });
 }
 
@@ -46,19 +48,21 @@ export default async function StaticPage({
   const page = await fetchPublicPageBySlug(pageSlug);
   if (!page) notFound();
 
+  const coverImage = safeMediaUrl(page.coverImage);
+
   return (
     <article className="mx-auto max-w-3xl px-4 py-14">
       <TrackPageView path={`/${page.slug}`} />
       <h1 className="font-[family-name:var(--font-source-serif)] text-4xl font-semibold tracking-tight text-stone-900">
         {page.title}
       </h1>
-      {page.coverImage ? (
+      {coverImage ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={page.coverImage} alt="" className="mt-8 aspect-[16/9] w-full object-cover" />
+        <img src={coverImage} alt="" className="mt-8 aspect-[16/9] w-full object-cover" />
       ) : null}
       <div
         className="prose-blog mt-10"
-        dangerouslySetInnerHTML={{ __html: page.html || "" }}
+        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(page.html) }}
       />
     </article>
   );

@@ -4,9 +4,11 @@ declare module "next-auth" {
   interface User {
     role: Role;
     accessToken: string;
+    accessTokenExpires?: number;
   }
   interface Session {
     accessToken?: string;
+    error?: string;
     user: {
       id: string;
       name?: string | null;
@@ -22,6 +24,8 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: Role;
     accessToken?: string;
+    accessTokenExpires?: number;
+    error?: string;
   }
 }
 

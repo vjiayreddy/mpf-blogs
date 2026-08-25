@@ -1,3 +1,5 @@
+import { safeMediaUrl } from "@/lib/safe-url";
+
 export type RawGraphqlPage = {
   id: string;
   title: string;
@@ -35,19 +37,20 @@ export type PageWriteInput = {
 };
 
 export function toPageInput(data: PageWriteInput) {
+  const coverImage = safeMediaUrl(data.coverImage) || "";
   return {
     ...(data.title !== undefined ? { title: data.title } : {}),
     slug: data.slug || undefined,
     excerpt: data.excerpt || "",
     lexicalJSON: data.lexicalJSON || "",
     html: data.html || "",
-    coverImage: data.coverImage || "",
+    coverImage,
     scheduledAt: data.scheduledAt || null,
     ...(data.status ? { status: data.status } : {}),
     seo: {
       title: data.seo?.title || "",
       description: data.seo?.description || "",
-      ogImage: data.seo?.ogImage || data.coverImage || "",
+      ogImage: safeMediaUrl(data.seo?.ogImage) || coverImage,
     },
   };
 }

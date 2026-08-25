@@ -9,6 +9,8 @@ import {
 } from "@/lib/graphql/posts";
 import { blogPostingJsonLd, buildMetadata } from "@/lib/seo";
 import { TrackPageView } from "@/components/public/track-page-view";
+import { jsonLdScript, sanitizeRichHtml } from "@/lib/sanitize-html";
+import { safeMediaUrl } from "@/lib/safe-url";
 import type { Metadata } from "next";
 
 export async function generateMetadata({
@@ -23,7 +25,7 @@ export async function generateMetadata({
     title: post.seo?.title || post.title,
     description: post.seo?.description || post.excerpt,
     path: `/blog/${post.slug}`,
-    image: post.seo?.ogImage || post.coverImage,
+    image: safeMediaUrl(post.seo?.ogImage) || safeMediaUrl(post.coverImage),
     type: "article",
     publishedAt: post.publishedAt,
   });
@@ -61,17 +63,19 @@ export default async function BlogPostPage({
     title: post.title,
     description: post.excerpt || "",
     slug: post.slug,
-    coverImage: post.coverImage || undefined,
+    coverImage: safeMediaUrl(post.coverImage),
     publishedAt: post.publishedAt,
     authorName: name,
   });
+
+  const coverImage = safeMediaUrl(post.coverImage);
 
   return (
     <article className="mx-auto max-w-3xl px-4 py-14">
       <TrackPageView path={`/blog/${post.slug}`} postId={post.id} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <p className="text-sm text-stone-500">
         {post.publishedAt ? format(new Date(post.publishedAt), "MMMM d, yyyy") : ""}
@@ -104,14 +108,14 @@ export default async function BlogPostPage({
         ))}
       </div>
 
-      {post.coverImage ? (
+      {coverImage ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={post.coverImage} alt="" className="mt-8 aspect-[16/9] w-full object-cover" />
+        <img src={coverImage} alt="" className="mt-8 aspect-[16/9] w-full object-cover" />
       ) : null}
 
       <div
         className="prose-blog mt-10"
-        dangerouslySetInnerHTML={{ __html: post.html || "" }}
+        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(post.html) }}
       />
 
       {post.seriesId?.slug ? (

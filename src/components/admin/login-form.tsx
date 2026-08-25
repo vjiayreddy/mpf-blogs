@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { safeCallbackPath } from "@/lib/safe-url";
 
 export function LoginForm() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export function LoginForm() {
       setError("Invalid email or password");
       return;
     }
-    router.push(searchParams.get("callbackUrl") || "/admin");
+    router.push(safeCallbackPath(searchParams.get("callbackUrl")));
     router.refresh();
   }
 

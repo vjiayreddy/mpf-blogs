@@ -1,13 +1,13 @@
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
+import { safeAuth } from "@/lib/safe-auth";
 import type { Role } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const session = await safeAuth();
+  if (!session?.user || !session.accessToken || session.error) redirect("/login");
 
   return (
     <div className="flex min-h-screen bg-stone-100">

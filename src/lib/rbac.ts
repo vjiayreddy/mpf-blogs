@@ -16,6 +16,10 @@ export function canUploadMedia(role: Role): boolean {
   return hasMinRole(role, "AUTHOR");
 }
 
+export function canDeleteContent(role: Role): boolean {
+  return hasMinRole(role, "EDITOR");
+}
+
 export function canAssignRole(actor: Role, target: Role): boolean {
   if (actor === "OWNER") return true;
   if (actor === "ADMIN") return target !== "OWNER" && target !== "ADMIN";

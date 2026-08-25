@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { LexicalEditor } from "@/components/editor/lexical-editor";
-import { RevisionHistory, type RevisionRecord } from "@/components/admin/revision-history";
+import {
+  applyRevisionRestore,
+  consumeRevisionRestore,
+} from "@/lib/revision-restore";
 import {
   CREATE_PAGE_MUTATION,
   GET_PAGE_QUERY,
@@ -75,10 +79,18 @@ function PageEditorFields({
     html: initial?.html || "",
   });
   const [currentId, setCurrentId] = useState(pageId);
+  const currentIdRef = useRef(currentId);
+  currentIdRef.current = currentId;
+  const savingRef = useRef(false);
   const importKey = useRef(0);
 
   const persist = useCallback(
-    async (nextStatus?: ContentStatus) => {
+    async (
+      nextStatus?: ContentStatus,
+      opts?: { allowCreate?: boolean; revision?: boolean }
+    ) => {
+      if (savingRef.current) return;
+      savingRef.current = true;
       const input = toPageInput({
         title: title || "Untitled",
         slug: slug || slugify(title || "untitled"),
@@ -90,18 +102,21 @@ function PageEditorFields({
         seo: { title: title || undefined, description: excerpt || undefined },
       });
       try {
-        if (mode === "create" && !currentId) {
+        const existingId = currentIdRef.current;
+        if (mode === "create" && !existingId) {
+          if (opts?.allowCreate === false) return;
           const result = await createPage({ variables: { input } });
           const createdId = result.data?.blogPortalCreatePage.id;
           if (!createdId) throw new Error("Create page failed");
+          currentIdRef.current = createdId;
           setCurrentId(createdId);
           router.replace(`/admin/pages/${createdId}`);
-        } else if (currentId) {
+        } else if (existingId) {
           await updatePage({
             variables: {
-              id: currentId,
+              id: existingId,
               input,
-              createRevision: true,
+              createRevision: Boolean(opts?.revision),
             },
           });
         }
@@ -110,46 +125,59 @@ function PageEditorFields({
         setLastSaved(new Date().toLocaleTimeString());
       } catch (err) {
         setMessage(err instanceof Error ? err.message : "Save failed");
+      } finally {
+        savingRef.current = false;
       }
     },
-    [title, slug, excerpt, status, coverImage, mode, router, createPage, updatePage, currentId]
+    [title, slug, excerpt, status, coverImage, mode, router, createPage, updatePage]
   );
 
   useEffect(() => {
     const timer = setInterval(() => {
+      if (!currentIdRef.current) return;
       if (!title && !contentRef.current.lexicalJSON) return;
-      startTransition(() => void persist());
+      startTransition(() => void persist(undefined, { allowCreate: false, revision: false }));
     }, 10000);
     return () => clearInterval(timer);
   }, [persist, title]);
 
-  const restoreRevision = useCallback((revision: RevisionRecord) => {
-    if (revision.title) setTitle(revision.title);
-    contentRef.current = {
-      lexicalJSON: revision.lexicalJSON || "",
-      html: revision.html || "",
-    };
-    importKey.current += 1;
-    if (revision.lexicalJSON) {
-      setJsonToImport({ json: revision.lexicalJSON, key: importKey.current });
-    } else if (revision.html) {
-      setHtmlToImport({ html: revision.html, key: importKey.current });
-    }
+  useEffect(() => {
+    if (!pageId) return;
+    const pending = consumeRevisionRestore("page", pageId);
+    if (!pending) return;
+    applyRevisionRestore(
+      pending,
+      setTitle,
+      contentRef,
+      importKey,
+      setJsonToImport,
+      setHtmlToImport
+    );
     setMessage("Revision restored — review and save");
-  }, []);
+  }, [pageId]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">{mode === "create" ? "New page" : "Edit page"}</h1>
-          <p className="text-sm text-stone-500">{message || "Autosave every 10s"}</p>
+          <p className="text-sm text-stone-500">
+            {message || (currentId ? "Autosave every 10s" : "Save a draft to enable autosave")}
+          </p>
         </div>
         <div className="flex gap-2">
+          {currentId ? (
+            <Link
+              href={`/admin/pages/${currentId}/revisions`}
+              className="rounded-full border border-stone-300 px-4 py-2 text-sm font-medium"
+            >
+              Revisions
+            </Link>
+          ) : null}
           <button
             type="button"
             disabled={pending}
-            onClick={() => startTransition(async () => persist("draft"))}
+            onClick={() => startTransition(async () => persist("draft", { revision: true }))}
             className="rounded-full bg-stone-200 px-4 py-2 text-sm font-medium"
           >
             Save draft
@@ -157,7 +185,7 @@ function PageEditorFields({
           <button
             type="button"
             disabled={pending}
-            onClick={() => startTransition(async () => persist("published"))}
+            onClick={() => startTransition(async () => persist("published", { revision: true }))}
             className="rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white"
           >
             Publish
@@ -205,15 +233,6 @@ function PageEditorFields({
           />
         </label>
       </div>
-
-      {currentId ? (
-        <RevisionHistory
-          documentId={currentId}
-          documentType="page"
-          refreshKey={lastSaved}
-          onRestore={restoreRevision}
-        />
-      ) : null}
     </div>
   );
 }

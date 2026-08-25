@@ -1,7 +1,10 @@
 import type { NextAuthConfig } from "next-auth";
 import type { Role } from "@/lib/constants";
 
+const SKEW_MS = 60_000;
+
 export const authConfig = {
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: {
     signIn: "/login",
@@ -10,7 +13,8 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      const isLoggedIn = !!auth?.user;
+      const hasValidToken = Boolean(auth?.accessToken) && !auth?.error;
+      const isLoggedIn = Boolean(auth?.user) && hasValidToken;
       const role = auth?.user?.role as Role | undefined;
 
       if (pathname.startsWith("/admin") && !isLoggedIn) {
@@ -34,7 +38,18 @@ export const authConfig = {
         token.id = user.id!;
         token.role = user.role;
         token.accessToken = user.accessToken;
+        token.accessTokenExpires = user.accessTokenExpires;
+        delete token.error;
       }
+
+      if (
+        typeof token.accessTokenExpires === "number" &&
+        Date.now() >= token.accessTokenExpires - SKEW_MS
+      ) {
+        token.accessToken = undefined;
+        token.error = "AccessTokenExpired";
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -44,6 +59,7 @@ export const authConfig = {
       }
       session.accessToken =
         typeof token.accessToken === "string" ? token.accessToken : undefined;
+      session.error = typeof token.error === "string" ? token.error : undefined;
       return session;
     },
   },

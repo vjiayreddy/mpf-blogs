@@ -2,6 +2,8 @@ import { auth } from "@/lib/auth";
 import { fetchPostById } from "@/lib/graphql/posts";
 import { notFound, redirect } from "next/navigation";
 import { canEditAnyContent } from "@/lib/rbac";
+import { sanitizeRichHtml } from "@/lib/sanitize-html";
+import { safeMediaUrl } from "@/lib/safe-url";
 import type { Role } from "@/lib/constants";
 
 export default async function PreviewPostPage({
@@ -31,13 +33,19 @@ export default async function PreviewPostPage({
       <article className="mx-auto max-w-3xl px-4 py-12">
         <h1 className="text-4xl font-semibold tracking-tight text-stone-900">{post.title}</h1>
         {post.excerpt ? <p className="mt-4 text-lg text-stone-600">{post.excerpt}</p> : null}
-        {post.coverImage ? (
+        {safeMediaUrl(post.coverImage) ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.coverImage} alt="" className="mt-8 aspect-[16/9] w-full object-cover" />
+          <img
+            src={safeMediaUrl(post.coverImage)}
+            alt=""
+            className="mt-8 aspect-[16/9] w-full object-cover"
+          />
         ) : null}
         <div
           className="prose-blog mt-10"
-          dangerouslySetInnerHTML={{ __html: post.html || "<p>No content yet.</p>" }}
+          dangerouslySetInnerHTML={{
+            __html: sanitizeRichHtml(post.html) || "<p>No content yet.</p>",
+          }}
         />
       </article>
     </div>

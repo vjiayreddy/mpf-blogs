@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { siteUrl } from "@/lib/utils";
+import { safeMediaUrl } from "@/lib/safe-url";
 
 type SeoInput = {
   title?: string | null;
@@ -25,7 +26,7 @@ export function buildMetadata({
   const siteTitle = title || "Blog Portal";
   const desc = description || "A Ghost-like publishing platform";
   const url = siteUrl(path);
-  const ogImage = image || undefined;
+  const ogImage = safeMediaUrl(image);
 
   return {
     title: siteTitle,

@@ -30,6 +30,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: user.email,
             role: user.role,
             accessToken: user.accessToken,
+            accessTokenExpires: user.accessTokenExpires,
           };
         } catch (err) {
           console.error("[auth] GraphQL login failed:", err);

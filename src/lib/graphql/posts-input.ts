@@ -1,3 +1,5 @@
+import { safeMediaUrl } from "@/lib/safe-url";
+
 export type GraphqlSeo = {
   title?: string;
   description?: string;
@@ -77,13 +79,14 @@ export type PostWriteInput = {
 };
 
 export function toPostInput(data: PostWriteInput) {
+  const coverImage = safeMediaUrl(data.coverImage) || "";
   return {
     ...(data.title !== undefined ? { title: data.title } : {}),
     slug: data.slug || undefined,
     excerpt: data.excerpt || "",
     lexicalJSON: data.lexicalJSON || "",
     html: data.html || "",
-    coverImage: data.coverImage || "",
+    coverImage,
     featured: data.featured || false,
     scheduledAt: data.scheduledAt || null,
     categoryIds: data.categoryIds || [],
@@ -94,7 +97,7 @@ export function toPostInput(data: PostWriteInput) {
     seo: {
       title: data.seo?.title || "",
       description: data.seo?.description || "",
-      ogImage: data.seo?.ogImage || data.coverImage || "",
+      ogImage: safeMediaUrl(data.seo?.ogImage) || coverImage,
     },
   };
 }

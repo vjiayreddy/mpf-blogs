@@ -2,20 +2,31 @@
 
 import { ApolloLink } from "@apollo/client/link";
 import { SetContextLink } from "@apollo/client/link/context";
+import { ErrorLink } from "@apollo/client/link/error";
 import { HttpLink } from "@apollo/client/link/http";
 import {
   ApolloClient,
   ApolloNextAppProvider,
 } from "@apollo/client-integration-nextjs";
-import { getSession } from "next-auth/react";
+import { getSession, signOut } from "next-auth/react";
 import { makeApolloCache } from "@/lib/graphql/cache";
 import { getGraphqlUri } from "@/lib/graphql/uri";
+import { isUnauthenticatedError } from "@/lib/graphql-auth";
+
+let signingOut = false;
 
 function makeClient() {
+  const errorLink = new ErrorLink(({ error }) => {
+    if (!isUnauthenticatedError(error) || signingOut) return;
+    if (typeof window !== "undefined" && window.location.pathname === "/login") return;
+    signingOut = true;
+    void signOut({ callbackUrl: "/login" });
+  });
+
   const authLink = new SetContextLink(async (prev) => {
     const session = await getSession();
     const headers = { ...(prev.headers || {}) } as Record<string, string>;
-    if (session?.accessToken && !headers.Authorization) {
+    if (session?.accessToken && !session.error && !headers.Authorization) {
       headers.Authorization = `Bearer ${session.accessToken}`;
     }
     return { headers };
@@ -28,7 +39,7 @@ function makeClient() {
 
   return new ApolloClient({
     cache: makeApolloCache(),
-    link: ApolloLink.from([authLink, httpLink]),
+    link: ApolloLink.from([errorLink, authLink, httpLink]),
   });
 }
 

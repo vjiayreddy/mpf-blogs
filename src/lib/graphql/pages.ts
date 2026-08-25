@@ -26,12 +26,13 @@ export async function fetchPublicPageBySlug(slug: string) {
     const data = await apolloQuery<{ blogPortalPageBySlug: RawGraphqlPage | null }>({
       query: GET_PAGE_BY_SLUG_QUERY,
       variables: { slug },
+      auth: "public",
     });
     const page = data.blogPortalPageBySlug;
     if (!page || page.status !== "published") return null;
     return page;
   } catch (err) {
-    console.error("[graphql] GetPageBySlug failed:", err);
+    console.error("[graphql] GetPageBySlug (public) failed:", err);
     return null;
   }
 }
@@ -40,10 +41,11 @@ export async function fetchPublicPages() {
   try {
     const data = await apolloQuery<{ blogPortalPages: RawGraphqlPage[] }>({
       query: LIST_PAGES_QUERY,
+      auth: "public",
     });
     return (data.blogPortalPages || []).filter((page) => page.status === "published");
   } catch (err) {
-    console.error("[graphql] ListPages failed:", err);
+    console.error("[graphql] ListPages (public) failed:", err);
     return [];
   }
 }

@@ -4,8 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useQuery } from "@apollo/client/react";
+import { useSession } from "next-auth/react";
 import { LIST_POSTS_QUERY } from "@/graphql/operations/posts";
 import { DeletePostButton } from "@/components/admin/delete-post-button";
+import { canDeleteContent } from "@/lib/rbac";
+import type { Role } from "@/lib/constants";
 
 type PostRow = {
   id: string;
@@ -20,6 +23,8 @@ type ListPostsData = {
 };
 
 export function PostsManager() {
+  const { data: sessionData } = useSession();
+  const canDelete = canDeleteContent((sessionData?.user?.role as Role) || "READER");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [applied, setApplied] = useState({ q: "", status: "" });
@@ -110,7 +115,9 @@ export function PostsManager() {
                   {post.updatedAt ? format(new Date(post.updatedAt), "MMM d, yyyy") : "—"}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <DeletePostButton id={post.id} onDeleted={() => void refetch()} />
+                  {canDelete ? (
+                    <DeletePostButton id={post.id} onDeleted={() => void refetch()} />
+                  ) : null}
                 </td>
               </tr>
             ))}

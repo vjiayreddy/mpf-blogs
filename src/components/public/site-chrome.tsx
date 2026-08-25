@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { safeAuth } from "@/lib/safe-auth";
 import { fetchPublicSettings } from "@/lib/graphql/settings";
 
 export async function PublicHeader() {
-  const [settings, session] = await Promise.all([fetchPublicSettings(), auth()]);
+  const [settings, session] = await Promise.all([
+    fetchPublicSettings(),
+    safeAuth(),
+  ]);
 
   return (
     <header className="border-b border-stone-200 bg-[#faf8f5]">

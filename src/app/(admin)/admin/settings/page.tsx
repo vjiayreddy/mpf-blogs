@@ -1,5 +1,7 @@
 import { SettingsForm } from "@/components/admin/settings-form";
+import { requireMinRole } from "@/lib/admin-guard";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  await requireMinRole("ADMIN");
   return <SettingsForm />;
 }

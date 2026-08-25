@@ -72,7 +72,10 @@ export function normalizeSettings(
 
 export async function fetchPublicSettings() {
   try {
-    const data = await apolloQuery<SettingsQueryData>({ query: SETTINGS_QUERY });
+    const data = await apolloQuery<SettingsQueryData>({
+      query: SETTINGS_QUERY,
+      auth: "public",
+    });
     return normalizeSettings(data.blogPortalSettings);
   } catch (err) {
     console.error("[graphql] GetSettings failed, using fallback:", err);

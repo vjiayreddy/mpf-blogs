@@ -46,14 +46,17 @@ type ListTaxonomiesData = {
 
 export async function fetchPublicTaxonomies() {
   try {
-    const data = await apolloQuery<ListTaxonomiesData>({ query: LIST_TAXONOMIES_QUERY });
+    const data = await apolloQuery<ListTaxonomiesData>({
+      query: LIST_TAXONOMIES_QUERY,
+      auth: "public",
+    });
     return {
       categories: (data.blogPortalCategories || []).map(toItem),
       tags: (data.blogPortalTags || []).map(toItem),
       series: (data.blogPortalSeriesList || []).map(toItem),
     };
   } catch (err) {
-    console.error("[graphql] ListTaxonomies failed:", err);
+    console.error("[graphql] ListTaxonomies (public) failed:", err);
     return { categories: [], tags: [], series: [] };
   }
 }

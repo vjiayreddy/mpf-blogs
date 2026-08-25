@@ -10,6 +10,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!process.env.GRAPHQL_ACCESS_TOKEN) {
+    return NextResponse.json(
+      { error: "GRAPHQL_ACCESS_TOKEN is not set" },
+      { status: 503 }
+    );
+  }
+
   try {
     const data = await apolloMutate<{
       blogPortalPublishDueContent: {
@@ -18,14 +25,18 @@ export async function GET(request: Request) {
       };
     }>({
       mutation: PUBLISH_DUE_CONTENT_MUTATION,
+      auth: "cron",
     });
 
     const publishedPosts = data.blogPortalPublishDueContent?.publishedPosts || 0;
     const publishedPages = data.blogPortalPublishDueContent?.publishedPages || 0;
 
     if (publishedPosts || publishedPages) {
-      revalidatePath("/");
+      revalidatePath("/", "layout");
       revalidatePath("/blog");
+      revalidatePath("/search");
+      revalidatePath("/rss.xml");
+      revalidatePath("/sitemap.xml");
     }
 
     return NextResponse.json({

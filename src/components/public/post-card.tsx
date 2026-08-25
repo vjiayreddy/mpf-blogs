@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { safeMediaUrl } from "@/lib/safe-url";
 
 type PostCardProps = {
   title: string;
@@ -20,12 +21,14 @@ export function PostCard({
   readingTime,
   authorName,
 }: PostCardProps) {
+  const image = safeMediaUrl(coverImage);
+
   return (
     <article className="group">
-      {coverImage ? (
+      {image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={coverImage}
+          src={image}
           alt=""
           className="mb-4 aspect-[16/10] w-full object-cover"
         />

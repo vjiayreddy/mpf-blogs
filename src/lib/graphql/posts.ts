@@ -4,6 +4,7 @@ import {
   GET_POST_QUERY,
   LIST_POSTS_QUERY,
 } from "@/graphql/operations/posts";
+import { safeMediaUrl } from "@/lib/safe-url";
 
 export type GraphqlSeo = {
   title?: string;
@@ -114,7 +115,7 @@ export function normalizePost(raw: RawGraphqlPost): GraphqlPost {
     plaintext: raw.plaintext || "",
     status: raw.status,
     featured: Boolean(raw.featured),
-    coverImage: raw.coverImage || "",
+    coverImage: safeMediaUrl(raw.coverImage) || "",
     scheduledAt: raw.scheduledAt || null,
     publishedAt: raw.publishedAt || null,
     readingTime: raw.readingTime || 1,
@@ -138,10 +139,14 @@ export function authorName(post: GraphqlPost) {
   return post.authorId?.name || undefined;
 }
 
-export async function fetchPosts(filter?: { status?: string; q?: string }) {
+async function listPosts(
+  filter?: { status?: string; q?: string },
+  auth: "session" | "public" = "session"
+) {
   const data = await apolloQuery<{ blogPortalPosts: RawGraphqlPost[] }>({
     query: LIST_POSTS_QUERY,
     variables: filter?.status || filter?.q ? { filter } : {},
+    auth,
   });
   return (data.blogPortalPosts || [])
     .map(normalizePost)
@@ -152,16 +157,20 @@ export async function fetchPosts(filter?: { status?: string; q?: string }) {
     });
 }
 
+export async function fetchPosts(filter?: { status?: string; q?: string }) {
+  return listPosts(filter, "session");
+}
+
 export async function fetchPublicPosts(filter?: { status?: string; q?: string }) {
   try {
-    const posts = await fetchPosts(filter);
+    const posts = await listPosts(filter, "public");
     return posts.sort((a, b) => {
       const aTime = new Date(a.publishedAt || a.updatedAt || 0).getTime();
       const bTime = new Date(b.publishedAt || b.updatedAt || 0).getTime();
       return bTime - aTime;
     });
   } catch (err) {
-    console.error("[graphql] ListPosts failed:", err);
+    console.error("[graphql] ListPosts (public) failed:", err);
     return [];
   }
 }
@@ -178,6 +187,7 @@ export async function fetchPostBySlug(slug: string) {
   const data = await apolloQuery<{ blogPortalPostBySlug: RawGraphqlPost | null }>({
     query: GET_POST_BY_SLUG_QUERY,
     variables: { slug },
+    auth: "public",
   });
   return data.blogPortalPostBySlug ? normalizePost(data.blogPortalPostBySlug) : null;
 }
@@ -188,7 +198,7 @@ export async function fetchPublicPostBySlug(slug: string) {
     if (!post || post.status !== "published") return null;
     return post;
   } catch (err) {
-    console.error("[graphql] GetPostBySlug failed:", err);
+    console.error("[graphql] GetPostBySlug (public) failed:", err);
     return null;
   }
 }

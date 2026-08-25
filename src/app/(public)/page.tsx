@@ -3,6 +3,8 @@ import { fetchPublicSettings } from "@/lib/graphql/settings";
 import { authorName, fetchPublicPosts } from "@/lib/graphql/posts";
 import { PostCard } from "@/components/public/post-card";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
+import { jsonLdScript } from "@/lib/sanitize-html";
+import { safeMediaUrl } from "@/lib/safe-url";
 import type { Metadata } from "next";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -11,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: settings.defaultSeo?.title || settings.siteTitle,
     description: settings.defaultSeo?.description || settings.siteDescription,
     path: "/",
-    image: settings.defaultSeo?.ogImage || settings.logo,
+    image: safeMediaUrl(settings.defaultSeo?.ogImage) || safeMediaUrl(settings.logo),
   });
 }
 
@@ -27,7 +29,7 @@ export default async function HomePage() {
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <section className="border-b border-stone-200 bg-gradient-to-b from-[#f3efe8] to-[#faf8f5]">
         <div className="mx-auto max-w-5xl px-4 py-16 sm:py-24">
